@@ -13,23 +13,22 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
+
 import logging
 from abc import ABC
-from typing import Union, Optional
+from typing import Optional, Union
 
 from gs_quant.base import Priceable
 from gs_quant.context_base import nullcontext
-from gs_quant.markets import MarketDataCoordinate, PricingContext, CloseMarket, OverlayMarket
-from gs_quant.risk import DataFrameWithInfo, DollarPrice, FloatWithInfo, Price, SeriesWithInfo, \
-    MarketData
-from gs_quant.risk.results import PricingFuture, PortfolioRiskResult, ErrorValue
+from gs_quant.markets import CloseMarket, MarketDataCoordinate, OverlayMarket, PricingContext
+from gs_quant.risk import DataFrameWithInfo, DollarPrice, FloatWithInfo, MarketData, Price, SeriesWithInfo
+from gs_quant.risk.results import ErrorValue, PortfolioRiskResult, PricingFuture
 
 __asset_class_and_type_to_instrument = {}
 _logger = logging.getLogger(__name__)
 
 
 class PriceableImpl(Priceable, ABC):
-
     @property
     def _pricing_context(self) -> PricingContext:
         pricing_context = PricingContext.current
@@ -38,8 +37,9 @@ class PriceableImpl(Priceable, ABC):
     @property
     def _return_future(self) -> bool:
         pricing_context = self._pricing_context
-        return not isinstance(pricing_context, PricingContext) or (pricing_context.is_async or
-                                                                   pricing_context.is_entered)
+        return not isinstance(pricing_context, PricingContext) or (
+            pricing_context.is_async or pricing_context.is_entered
+        )
 
     def dollar_price(self) -> Union[FloatWithInfo, PortfolioRiskResult, PricingFuture, SeriesWithInfo]:
         """
@@ -100,8 +100,9 @@ class PriceableImpl(Priceable, ABC):
 
         """
 
-        def handle_result(result: Optional[Union[DataFrameWithInfo, ErrorValue, PricingFuture]]) -> \
-                [OverlayMarket, dict]:
+        def handle_result(
+            result: Optional[Union[DataFrameWithInfo, ErrorValue, PricingFuture]],
+        ) -> [OverlayMarket, dict]:
             if isinstance(result, ErrorValue):
                 return result
 
@@ -110,27 +111,27 @@ class PriceableImpl(Priceable, ABC):
             location = PricingContext.current.market_data_location
 
             def extract_market_data(this_result: DataFrameWithInfo):
-                market_data = {}
-
-                for _, row in this_result.iterrows():
+                def process_row(row):
                     coordinate_values = {p: row.get(p) for p in properties}
                     mkt_point = coordinate_values.get('mkt_point')
                     if mkt_point is not None:
                         coordinate_values['mkt_point'] = tuple(coordinate_values['mkt_point'].split(';'))
+                    return (
+                        MarketDataCoordinate.from_dict(coordinate_values),
+                        row['value'] if row['permissions'] == 'Granted' else 'redacted',
+                    )
 
-                    # return 'redacted' as coordinate value if its a redacted coordinate
-                    market_data[MarketDataCoordinate.from_dict(coordinate_values)] = row['value'] if \
-                        row['permissions'] == 'Granted' else 'redacted'
-
-                return market_data
+                return {coord: val for coord, val in this_result.apply(process_row, axis=1)}
 
             if is_historical:
-                return {date: OverlayMarket(
-                    base_market=CloseMarket(date=date, location=location),
-                    market_data=extract_market_data(result.loc[date]))
-                    for date in set(result.index)}
+                return {
+                    date: OverlayMarket(
+                        base_market=CloseMarket(date=date, location=location),
+                        market_data=extract_market_data(result.loc[date]),
+                    )
+                    for date in set(result.index)
+                }
             else:
-                return OverlayMarket(base_market=result.risk_key.market,
-                                     market_data=extract_market_data(result))
+                return OverlayMarket(base_market=result.risk_key.market, market_data=extract_market_data(result))
 
         return self.calc(MarketData, fn=handle_result)

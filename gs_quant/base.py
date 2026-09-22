@@ -13,26 +13,43 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
+
 import builtins
 import copy
 import datetime as dt
 import logging
+import sys
+import typing
 from abc import ABC, ABCMeta, abstractmethod
 from collections import namedtuple
-from dataclasses import Field, InitVar, MISSING, dataclass, field, fields, replace
-from enum import EnumMeta
+from dataclasses import MISSING, Field, InitVar, dataclass, field, fields, replace
+from enum import Enum, EnumMeta
 from functools import update_wrapper
-from typing import Iterable, Mapping, Optional, Union, Tuple
+from inspect import signature
+from typing import Iterable, Mapping, Optional, Union
 
 import numpy as np
-from dataclasses_json import config, global_config
+from dataclasses_json import LetterCase, config, dataclass_json, global_config
 from dataclasses_json.core import _decode_generic, _is_supported_generic
 from inflection import camelize, underscore
 
 from gs_quant.context_base import ContextBase, ContextMeta
-from gs_quant.json_convertors import encode_date_or_str, decode_date_or_str, decode_optional_date, encode_datetime, \
-    decode_datetime, decode_float_or_str, decode_instrument, encode_dictable, decode_quote_report, decode_quote_reports, \
-    decode_custom_comment, decode_custom_comments
+from gs_quant.json_convertors import (
+    decode_custom_comment,
+    decode_custom_comments,
+    decode_date_or_str,
+    decode_datetime,
+    decode_float_or_str,
+    decode_instrument,
+    decode_optional_date,
+    decode_optional_time,
+    decode_quote_report,
+    decode_quote_reports,
+    encode_date_or_str,
+    encode_datetime,
+    encode_dictable,
+    encode_optional_time,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -41,12 +58,14 @@ __getattribute__ = object.__getattribute__
 __setattr__ = object.__setattr__
 
 _rename_cache = {}
+_is_supported_generic_cache = {}
+
 
 def exclude_none(o):
     return o is None
 
 
-def exlude_always(_o):
+def exclude_always(_o):
     return True
 
 
@@ -63,6 +82,16 @@ def _get_underscore(arg):
         _rename_cache[arg] = underscore(arg)
 
     return _rename_cache[arg]
+
+
+def _get_is_supported_generic(arg):
+    if arg in _is_supported_generic_cache:
+        is_supported_generic = _is_supported_generic_cache[arg]
+    else:
+        is_supported_generic = _is_supported_generic(arg)
+        _is_supported_generic_cache[arg] = is_supported_generic
+    return is_supported_generic
+
 
 def handle_camel_case_args(cls):
     init = cls.__init__
@@ -88,15 +117,40 @@ def handle_camel_case_args(cls):
     return cls
 
 
+def static_field(val):
+    return field(init=False, default=val)
+
+
 field_metadata = config(exclude=exclude_none)
-name_metadata = config(exclude=exlude_always)
+name_metadata = config(exclude=exclude_always)
 
 
 class RiskKey(namedtuple('RiskKey', ('provider', 'date', 'market', 'params', 'scenario', 'risk_measure'))):
-
     @property
     def ex_measure(self):
-        return RiskKey(self.provider, self.date, self.market, self.params, self.scenario, None)
+        from gs_quant.target.common import RiskRequestParameters  # noqa
+
+        return RiskKey(
+            self.provider,
+            self.date,
+            self.market,
+            RiskRequestParameters(self.params.csa_term, self.params.raw_results, False, self.params.market_behaviour),
+            self.scenario,
+            None,
+        )
+
+    @property
+    def ex_historical_diddle(self):
+        from gs_quant.target.common import RiskRequestParameters  # noqa
+
+        return RiskKey(
+            self.provider,
+            self.date,
+            self.market,
+            RiskRequestParameters(self.params.csa_term, self.params.raw_results, False, self.params.market_behaviour),
+            self.scenario,
+            self.risk_measure,
+        )
 
     @property
     def fields(self):
@@ -104,7 +158,6 @@ class RiskKey(namedtuple('RiskKey', ('provider', 'date', 'market', 'params', 'sc
 
 
 class EnumBase:
-
     @classmethod
     def _missing_(cls: EnumMeta, key):
         if not isinstance(key, str):
@@ -118,13 +171,15 @@ class EnumBase:
         return self.value < other.value
 
     def __repr__(self):
+        return str(self)
+
+    def __str__(self):
         return self.value
 
 
 class HashableDict(dict):
-
     @staticmethod
-    def hashables(in_dict) -> Tuple:
+    def hashables(in_dict) -> tuple:
         hashables = []
         for it in in_dict.items():
             if isinstance(it[1], dict):
@@ -138,7 +193,6 @@ class HashableDict(dict):
 
 
 class DictBase(HashableDict):
-
     _PROPERTIES = set()
 
     def __init__(self, *args, **kwargs):
@@ -147,8 +201,9 @@ class DictBase(HashableDict):
             if invalid_arg is not None:
                 raise AttributeError(f"'{self.__class__.__name__}' has no attribute '{invalid_arg}'")
 
-        super().__init__(*args, **{camelize(k, uppercase_first_letter=False): v for k, v in kwargs.items()
-                                   if v is not None})
+        super().__init__(
+            *args, **{camelize(k, uppercase_first_letter=False): v for k, v in kwargs.items() if v is not None}
+        )
 
     def __getitem__(self, item):
         return super().__getitem__(camelize(item, uppercase_first_letter=False))
@@ -223,16 +278,53 @@ class Base(ABC):
         return super().__repr__()
 
     @classmethod
+    def __is_type_match(cls, tp, val):
+        if sys.version_info >= (3, 9):
+            from types import GenericAlias
+
+            is_generic_alias = isinstance(tp, (typing._GenericAlias, GenericAlias))
+            if sys.version_info >= (3, 10) and not is_generic_alias:
+                from types import UnionType
+
+                if isinstance(tp, UnionType):
+                    return any(cls.__is_type_match(arg, val) for arg in tp.__args__)
+        else:
+            is_generic_alias = isinstance(tp, typing._GenericAlias)
+        if not is_generic_alias:
+            # Do not convert Enums to strings
+            is_enum_to_str = isinstance(val, Enum) and tp is str
+            return isinstance(tp, type) and (isinstance(val, tp) or is_enum_to_str)
+        if getattr(tp, '_special', False):
+            return False
+        origin = tp.__origin__
+        args = tp.__args__
+        if float in args:
+            args += (int,)
+        if origin == Union:
+            return any(cls.__is_type_match(arg, val) for arg in args)
+        if origin is tuple:
+            if not isinstance(val, tuple) or not args:
+                return False
+            if len(args) == 1 or args[1] == Ellipsis:
+                return all(cls.__is_type_match(args[0], x) for x in val)
+            else:
+                return len(args) == len(val) and all(cls.__is_type_match(arg, x) for arg, x in zip(args, val))
+        return False
+
+    @classmethod
     def __coerce_value(cls, typ: type, value):
+        if cls.__is_type_match(typ, value):
+            return value
         if isinstance(value, np.generic):
             # Handle numpy types
             return value.item()
         elif hasattr(value, 'tolist'):
             # tolist converts scalar or array to native python type if not already native.
-            return value()
+            return value.tolist()
         elif typ in (DictBase, Optional[DictBase]) and isinstance(value, Base):
             return value.to_dict()
-        if _is_supported_generic(typ):
+        is_supported_generic = _get_is_supported_generic(typ)
+        if is_supported_generic:
             return _decode_generic(typ, value, False)
         else:
             return value
@@ -266,18 +358,18 @@ class Base(ABC):
 
     def clone(self, **kwargs):
         """
-            Clone this object, overriding specified values
+        Clone this object, overriding specified values
 
-            :param kwargs: property names and values, e.g. swap.clone(fixed_rate=0.01)
+        :param kwargs: property names and values, e.g. swap.clone(fixed_rate=0.01)
 
-            **Examples**
+        **Examples**
 
-            To change the market data location of the default context:
+        To change the market data location of the default context:
 
-            >>> from gs_quant.instrument import IRCap
-            >>> cap = IRCap('5y', 'GBP')
-            >>>
-            >>> new_cap = cap.clone(cap_rate=0.01)
+        >>> from gs_quant.instrument import IRCap
+        >>> cap = IRCap('5y', 'GBP')
+        >>>
+        >>> new_cap = cap.clone(cap_rate=0.01)
         """
         return replace(self, **kwargs)
 
@@ -334,9 +426,9 @@ class Base(ABC):
                 __setattr__(self, fld.name, __getattribute__(instance, fld.name))
 
 
+@dataclass_json
 @dataclass
 class Priceable(Base):
-
     def resolve(self, in_place: bool = True):
         """
         Resolve non-supplied properties of an instrument
@@ -465,24 +557,30 @@ class Scenario(Base, ContextBase, ABC, metaclass=__ScenarioMeta):
             params = self.as_dict()
             sorted_keys = sorted(params.keys(), key=lambda x: x.lower())
             params = ', '.join(
-                [f'{k}:{params[k].__repr__ if isinstance(params[k], Base) else params[k]}' for k in sorted_keys])
+                [f'{k}:{params[k].__repr__ if isinstance(params[k], Base) else params[k]}' for k in sorted_keys]
+            )
             return self.scenario_type + '(' + params + ')'
 
 
 @dataclass
 class RiskMeasureParameter(Base, ABC):
-    pass
+    def __repr__(self):
+        params = self.as_dict()
+        params.pop("parameter_type", None)
+        sorted_keys = sorted(params.keys(), key=lambda x: x.lower())
+        params = ", ".join(
+            [f"{k}:{params[k].value if isinstance(params[k], EnumBase) else params[k]}" for k in sorted_keys]
+        )
+        return f"{self.parameter_type}({params})"
 
 
 @dataclass
 class InstrumentBase(Base, ABC):
-
     quantity_: InitVar[float] = field(default=1, init=False)
 
     @property
     @abstractmethod
-    def provider(self):
-        ...
+    def provider(self): ...
 
     @property
     def instrument_quantity(self) -> float:
@@ -538,7 +636,6 @@ class InstrumentBase(Base, ABC):
 
 @dataclass
 class Market(ABC):
-
     def __hash__(self):
         return hash(self.market or self.location)
 
@@ -550,20 +647,22 @@ class Market(ABC):
 
     @property
     @abstractmethod
-    def market(self):
-        ...
+    def market(self): ...
 
     @property
     @abstractmethod
-    def location(self):
-        ...
+    def location(self): ...
 
     def to_dict(self):
         return self.market.to_dict()
 
+    def clone(self, **kwargs):
+        clone_kwargs = {k: getattr(self, k, None) for k in signature(self.__init__).parameters.keys()}
+        clone_kwargs.update(kwargs)
+        return self.__class__(**clone_kwargs)
+
 
 class Sentinel:
-
     def __init__(self, name: str):
         self.__name = name
 
@@ -597,6 +696,15 @@ def get_enum_value(enum_type: EnumMeta, value: Union[EnumBase, str]):
     return enum_value
 
 
+@handle_camel_case_args
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(unsafe_hash=True, repr=False)
+class MarketDataScenario(Base):
+    scenario: Scenario = field(default=None, metadata=field_metadata)
+    subtract_base: Optional[bool] = field(default=False, metadata=field_metadata)
+    name: Optional[str] = field(default=None, metadata=name_metadata)
+
+
 # Yes, I know this is a little evil ...
 global_config.encoders[dt.date] = dt.date.isoformat
 global_config.encoders[Optional[dt.date]] = encode_date_or_str
@@ -606,6 +714,10 @@ global_config.encoders[Union[dt.date, str]] = encode_date_or_str
 global_config.encoders[Optional[Union[dt.date, str]]] = encode_date_or_str
 global_config.decoders[Union[dt.date, str]] = decode_date_or_str
 global_config.decoders[Optional[Union[dt.date, str]]] = decode_date_or_str
+global_config.encoders[dt.time] = dt.time.isoformat
+global_config.decoders[dt.time] = dt.time.fromisoformat
+global_config.encoders[Optional[dt.time]] = encode_optional_time
+global_config.decoders[Optional[dt.time]] = decode_optional_time
 global_config.encoders[dt.datetime] = encode_datetime
 global_config.encoders[Optional[dt.datetime]] = encode_datetime
 global_config.decoders[dt.datetime] = decode_datetime
@@ -616,9 +728,8 @@ global_config.decoders[Optional[Union[float, str]]] = decode_float_or_str
 global_config.decoders[InstrumentBase] = decode_instrument
 global_config.decoders[Optional[InstrumentBase]] = decode_instrument
 global_config.decoders[QuoteReport] = decode_quote_report
-global_config.decoders[Optional[Tuple[QuoteReport, ...]]] = decode_quote_reports
+global_config.decoders[Optional[tuple[QuoteReport, ...]]] = decode_quote_reports
 global_config.decoders[CustomComments] = decode_custom_comment
-global_config.decoders[Optional[Tuple[CustomComments, ...]]] = decode_custom_comments
-
+global_config.decoders[Optional[tuple[CustomComments, ...]]] = decode_custom_comments
 global_config.encoders[Market] = encode_dictable
 global_config.encoders[Optional[Market]] = encode_dictable

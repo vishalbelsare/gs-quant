@@ -22,6 +22,7 @@ import pandas as pd
 from gs_quant.data import DataCoordinate
 from gs_quant.data.coordinate import DateOrDatetime
 from gs_quant.datetime.relative_date import RelativeDate
+
 from .stream import DataSeries
 
 
@@ -33,11 +34,13 @@ class DataQueryType(Enum):
 class DataQuery:
     """Defines a query on a coordinate"""
 
-    def __init__(self,
-                 coordinate: DataCoordinate,
-                 start: Union[DateOrDatetime, RelativeDate] = None,
-                 end: Union[DateOrDatetime, RelativeDate] = None,
-                 query_type: DataQueryType = DataQueryType.RANGE):
+    def __init__(
+        self,
+        coordinate: DataCoordinate,
+        start: Union[DateOrDatetime, RelativeDate] = None,
+        end: Union[DateOrDatetime, RelativeDate] = None,
+        query_type: DataQueryType = DataQueryType.RANGE,
+    ):
         """Initialize data query"""
 
         self.coordinate = coordinate

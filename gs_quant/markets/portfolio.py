@@ -13,30 +13,36 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
+
 import datetime as dt
 import logging
 import re
 from dataclasses import dataclass
 from itertools import chain
-from typing import Iterable, Optional, Tuple, Union
+from typing import Iterable, Optional, Union
 from urllib.parse import quote
 
 import deprecation
 import numpy as np
 import pandas as pd
+from more_itertools import unique_everseen
+
 from gs_quant.api.gs.assets import GsAssetApi
 from gs_quant.api.gs.portfolios import GsPortfolioApi
 from gs_quant.base import InstrumentBase
-from gs_quant.common import RiskMeasure
-from gs_quant.instrument import Instrument, AssetType
-from gs_quant.markets import HistoricalPricingContext, OverlayMarket, PricingContext, PositionContext
+from gs_quant.common import RiskMeasure, RiskPosition
+from gs_quant.instrument import AssetType, Instrument
+from gs_quant.markets import HistoricalPricingContext, OverlayMarket, PositionContext, PricingContext
 from gs_quant.priceable import PriceableImpl
 from gs_quant.risk import ResolvedInstrumentValues
-from gs_quant.risk.results import CompositeResultFuture, PortfolioRiskResult, PortfolioPath, PricingFuture
-from gs_quant.target.common import RiskPosition
-from gs_quant.target.portfolios import Portfolio as MarqueePortfolio
-from gs_quant.target.portfolios import Position, PositionSet, RiskRequest, PricingDateAndMarketDataAsOf
-from more_itertools import unique_everseen
+from gs_quant.risk.results import CompositeResultFuture, PortfolioPath, PortfolioRiskResult, PricingFuture
+from gs_quant.target.portfolios import (
+    Portfolio as MarqueePortfolio,
+    Position,
+    PositionSet,
+    PricingDateAndMarketDataAsOf,
+    RiskRequest,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -49,9 +55,9 @@ class Portfolio(PriceableImpl):
 
     """
 
-    def __init__(self,
-                 priceables: Optional[Union[PriceableImpl, Iterable[PriceableImpl], dict]] = (),
-                 name: Optional[str] = None):
+    def __init__(
+        self, priceables: Optional[Union[PriceableImpl, Iterable[PriceableImpl], dict]] = (), name: Optional[str] = None
+    ):
         """
         Creates a portfolio object which can be used to hold instruments
 
@@ -71,6 +77,15 @@ class Portfolio(PriceableImpl):
         self.name = name
         self.__id = None
         self.__quote_id = None
+
+    def __repr__(self):
+        name = 'Portfolio'
+        inst_desc = f'{len(self.all_instruments) if self.priceables else "0"} instrument(s)'
+        if self.name:
+            name += f'({self.name}, {inst_desc})'
+        else:
+            name += f'({inst_desc})'
+        return name
 
     def _to_records(self):
         def get_name(obj, idx):
@@ -103,8 +118,11 @@ class Portfolio(PriceableImpl):
         elif isinstance(item, PortfolioPath):
             return item(self, rename_to_parent=True)
         else:
-            values = tuple(self[p] for it in item for p in self.paths(it)) if isinstance(item, list) else tuple(
-                self[p] for p in self.paths(item))
+            values = (
+                tuple(self[p] for it in item for p in self.paths(it))
+                if isinstance(item, list)
+                else tuple(self[p] for p in self.paths(item))
+            )
             return values[0] if len(values) == 1 else values
 
     def __contains__(self, item):
@@ -162,7 +180,7 @@ class Portfolio(PriceableImpl):
         return self.__quote_id
 
     @property
-    def priceables(self) -> Tuple[PriceableImpl, ...]:
+    def priceables(self) -> tuple[PriceableImpl, ...]:
         return self.__priceables
 
     @priceables.setter
@@ -180,20 +198,20 @@ class Portfolio(PriceableImpl):
         self.__priceables_by_name = None
 
     @property
-    def instruments(self) -> Tuple[Instrument, ...]:
+    def instruments(self) -> tuple[Instrument, ...]:
         return tuple(unique_everseen(i for i in self.__priceables if isinstance(i, Instrument)))
 
     @property
-    def all_instruments(self) -> Tuple[Instrument, ...]:
+    def all_instruments(self) -> tuple[Instrument, ...]:
         instr = chain(self.instruments, chain.from_iterable(p.all_instruments for p in self.all_portfolios))
         return tuple(unique_everseen(instr))
 
     @property
-    def portfolios(self) -> Tuple[PriceableImpl, ...]:
+    def portfolios(self) -> tuple[PriceableImpl, ...]:
         return tuple(i for i in self.__priceables if isinstance(i, Portfolio))
 
     @property
-    def all_portfolios(self) -> Tuple[PriceableImpl, ...]:
+    def all_portfolios(self) -> tuple[PriceableImpl, ...]:
         stack = list(self.portfolios)
         portfolios = list(unique_everseen(stack))
 
@@ -232,8 +250,11 @@ class Portfolio(PriceableImpl):
     @staticmethod
     def from_asset_id(asset_id: str, date=None):
         asset = GsAssetApi.get_asset(asset_id)
-        response = GsAssetApi.get_asset_positions_for_date(asset_id, date) if date else \
-            GsAssetApi.get_latest_positions(asset_id)
+        response = (
+            GsAssetApi.get_asset_positions_for_date(asset_id, date)
+            if date
+            else GsAssetApi.get_latest_positions(asset_id)
+        )
         response = response[0] if isinstance(response, tuple) else response
         positions = response.positions if isinstance(response, PositionSet) else response['positions']
         instruments = GsAssetApi.get_instruments_for_positions(positions)
@@ -247,9 +268,7 @@ class Portfolio(PriceableImpl):
         return Portfolio.load_from_portfolio_id(asset.id)
 
     @classmethod
-    def get(cls,
-            portfolio_id: str = None,
-            portfolio_name: str = None):
+    def get(cls, portfolio_id: str = None, portfolio_name: str = None, query_instruments: Optional[bool] = False):
         if portfolio_name:
             portfolio = GsPortfolioApi.get_portfolio_by_name(portfolio_name)
             portfolio_id = portfolio.id
@@ -257,20 +276,24 @@ class Portfolio(PriceableImpl):
         portfolio = GsPortfolioApi.get_portfolio(portfolio_id)
         ret = Portfolio(name=portfolio.name)
         ret.__id = portfolio_id
-        ret._get_instruments(position_date, True)
+        if query_instruments:
+            ret._get_instruments(position_date, True)
         return ret
 
     @classmethod
-    @deprecation.deprecated(deprecated_in='0.8.293',
-                            details='from_portfolio_id is now deprecated, please use '
-                                    'Portfolio.get(portfolio_id=portfolio_id) instead.')
+    @deprecation.deprecated(
+        deprecated_in='0.8.293',
+        details='from_portfolio_id is now deprecated, please use Portfolio.get(portfolio_id=portfolio_id) instead.',
+    )
     def from_portfolio_id(cls, portfolio_id: str):
         return cls.get(portfolio_id=portfolio_id)
 
     @classmethod
-    @deprecation.deprecated(deprecated_in='0.8.293',
-                            details='from_portfolio_name is now deprecated, please use '
-                                    'Portfolio.get(portfolio_name=portfolio_name) instead.')
+    @deprecation.deprecated(
+        deprecated_in='0.8.293',
+        details='from_portfolio_name is now deprecated, please use '
+        'Portfolio.get(portfolio_name=portfolio_name) instead.',
+    )
     def from_portfolio_name(cls, name: str):
         return cls.get(portfolio_name=name)
 
@@ -296,8 +319,10 @@ class Portfolio(PriceableImpl):
 
         position_set = PositionSet(
             position_date=self.__position_context.position_date,
-            positions=tuple(Position(asset_id=GsAssetApi.get_or_create_asset_from_instrument(i))
-                            for i in self.instruments))
+            positions=tuple(
+                Position(asset_id=GsAssetApi.get_or_create_asset_from_instrument(i)) for i in self.instruments
+            ),
+        )
         if len(position_set.positions) > 0:
             GsPortfolioApi.update_positions(self.__id, [position_set])
 
@@ -313,8 +338,7 @@ class Portfolio(PriceableImpl):
         request = RiskRequest(
             tuple(RiskPosition(instrument=i, quantity=i.instrument_quantity) for i in self.instruments),
             (ResolvedInstrumentValues,),
-            pricing_and_market_data_as_of=(PricingDateAndMarketDataAsOf(pricing_date=pricing_date,
-                                                                        market=market),)
+            pricing_and_market_data_as_of=(PricingDateAndMarketDataAsOf(pricing_date=pricing_date, market=market),),
         )
 
         if self.__quote_id:
@@ -340,8 +364,7 @@ class Portfolio(PriceableImpl):
         request = RiskRequest(
             tuple(RiskPosition(instrument=i, quantity=i.instrument_quantity) for i in self.instruments),
             (ResolvedInstrumentValues,),
-            pricing_and_market_data_as_of=(PricingDateAndMarketDataAsOf(pricing_date=pricing_date,
-                                                                        market=market),)
+            pricing_and_market_data_as_of=(PricingDateAndMarketDataAsOf(pricing_date=pricing_date, market=market),),
         )
         status = GsPortfolioApi.save_to_shadowbook(request, name)
         print(f'Save to shadowbook status - {status}')
@@ -356,7 +379,8 @@ class Portfolio(PriceableImpl):
         mappings = mappings or {}
         data = data.replace({np.nan: None})
 
-        for row in (r for _, r in data.iterrows() if any(v for v in r.values if v is not None)):
+        filtered_data = data[data.notnull().any(axis=1)]
+        for _, row in filtered_data.iterrows():
             instrument = None
             for init_keys in (('asset_class', 'type'), ('$type',)):
                 init_values = tuple(filter(None, (get_value(row, k) for k in init_keys)))
@@ -373,11 +397,7 @@ class Portfolio(PriceableImpl):
         return cls(instruments)
 
     @classmethod
-    def from_csv(
-            cls,
-            csv_file: str,
-            mappings: Optional[dict] = None
-    ):
+    def from_csv(cls, csv_file: str, mappings: Optional[dict] = None):
         data = pd.read_csv(csv_file, skip_blank_lines=True).replace({np.nan: None})
         reg = re.compile(r'\.[0-9]')
         dupelist = [re.sub(reg, '', word) for word in data.columns if reg.search(word)]
@@ -394,7 +414,7 @@ class Portfolio(PriceableImpl):
             return Portfolio([inst.scale(scaling, in_place) for inst in instruments])
 
     def append(self, priceables: Union[PriceableImpl, Iterable[PriceableImpl]]):
-        self.priceables += ((priceables,) if isinstance(priceables, PriceableImpl) else tuple(priceables))
+        self.priceables += (priceables,) if isinstance(priceables, PriceableImpl) else tuple(priceables)
 
     def pop(self, item) -> PriceableImpl:
         priceable = self[item]
@@ -416,8 +436,9 @@ class Portfolio(PriceableImpl):
                     if not hasattr(priceable, 'asset_class'):
                         as_dict['$type'] = priceable.type_
 
-                    records.append(dict(chain(as_dict.items(),
-                                              (('instrument', priceable), ('portfolio', portfolio.name)))))
+                    records.append(
+                        dict(chain(as_dict.items(), (('instrument', priceable), ('portfolio', portfolio.name))))
+                    )
 
             return records
 
@@ -444,12 +465,12 @@ class Portfolio(PriceableImpl):
     def to_csv(self, csv_file: str, mappings: Optional[dict] = None, ignored_cols: Optional[list] = None):
         port_df = self.to_frame(mappings or {})
         port_df = port_df[np.setdiff1d(port_df.columns, ignored_cols or [])]
-        port_df.reset_index(drop=True, inplace=True)
+        port_df = port_df.reset_index(drop=True)
 
         port_df.to_csv(csv_file)
 
     @property
-    def all_paths(self) -> Tuple[PortfolioPath, ...]:
+    def all_paths(self) -> tuple[PortfolioPath, ...]:
         paths = ()
         stack = [(None, self)]
         while stack:
@@ -464,7 +485,7 @@ class Portfolio(PriceableImpl):
 
         return paths
 
-    def paths(self, key: Union[str, PriceableImpl]) -> Tuple[PortfolioPath, ...]:
+    def paths(self, key: Union[str, PriceableImpl]) -> tuple[PortfolioPath, ...]:
         if not isinstance(key, (str, Instrument, Portfolio)):
             raise ValueError('key must be a name or Instrument or Portfolio')
 
@@ -478,8 +499,9 @@ class Portfolio(PriceableImpl):
 
         paths = tuple(PortfolioPath(i) for i in idx) if idx else ()
 
-        for path, porfolio in ((PortfolioPath(i), p)
-                               for i, p in enumerate(self.__priceables) if isinstance(p, Portfolio)):
+        for path, porfolio in (
+            (PortfolioPath(i), p) for i, p in enumerate(self.__priceables) if isinstance(p, Portfolio)
+        ):
             paths += tuple(path + sub_path for sub_path in porfolio.paths(key))
 
         return paths
@@ -555,8 +577,10 @@ class Portfolio(PriceableImpl):
             if market_data:
                 ret = OverlayMarket(base_market=results[0], market_data=market_data)
             else:
-                ret = {base_market.date: OverlayMarket(base_market=base_market, market_data=market_data)
-                       for base_market, market_data in overlay_markets.items()}
+                ret = {
+                    base_market.date: OverlayMarket(base_market=base_market, market_data=market_data)
+                    for base_market, market_data in overlay_markets.items()
+                }
 
             if result_future:
                 result_future.set_result(ret)
@@ -570,14 +594,15 @@ class Portfolio(PriceableImpl):
             # PortfolioRiskResult should hold a copy of the portfolio instead of a reference to the portfolio
             # this is to prevent the portfolio object within portfolioriskresult to hold a reference to the portfolio
             # object should it later be modified in place (eg: resolution)
-            return PortfolioRiskResult(self.clone(),
-                                       (risk_measure,) if isinstance(risk_measure, RiskMeasure) else risk_measure,
-                                       [p.calc(risk_measure, fn=fn) for p in priceables])
+            return PortfolioRiskResult(
+                self.clone(),
+                (risk_measure,) if isinstance(risk_measure, RiskMeasure) else risk_measure,
+                [p.calc(risk_measure, fn=fn) for p in priceables],
+            )
 
     def _get_instruments(self, position_date: dt.date, in_place: bool, return_priceables: bool = True):
         if self.id:
-            dates_prior = list(filter(lambda date: date < position_date,
-                                      GsPortfolioApi.get_position_dates(self.id)))
+            dates_prior = list(filter(lambda date: date < position_date, GsPortfolioApi.get_position_dates(self.id)))
             if len(dates_prior) == 0:
                 raise ValueError('Your portfolio has no positions on the PositionContext date')
             date = max(dates_prior)
@@ -591,8 +616,40 @@ class Portfolio(PriceableImpl):
 
     def clone(self, clone_instruments: bool = False):
         portfolio_clone = Portfolio(
-            [p.clone(clone_instruments) if isinstance(p, Portfolio) else p.clone() if clone_instruments else p for p in
-             self.__priceables], name=self.name)
+            [
+                p.clone(clone_instruments) if isinstance(p, Portfolio) else p.clone() if clone_instruments else p
+                for p in self.__priceables
+            ],
+            name=self.name,
+        )
         portfolio_clone.__id = self.__id
         portfolio_clone.__quote_id = self.__quote_id
         return portfolio_clone
+
+
+@dataclass
+class Grid(Portfolio):
+    """A grid of instruments
+
+    A grid is a type of portfolio which represents a grid of similar instruments
+
+    """
+
+    def __init__(
+        self,
+        priceable: PriceableImpl,
+        x_param: str,
+        x_values: Iterable,
+        y_param: str,
+        y_values: Iterable,
+        name: Optional[str] = None,
+    ):
+        x_overrides = [{x_param: v, 'name': v} for v in x_values]
+        y_overrides = [{y_param: v} for v in y_values]
+        super().__init__(
+            [
+                Portfolio([priceable.clone(**{**x, **y}) for x in x_overrides], name=next(iter(y.values())))
+                for y in y_overrides
+            ],
+            name,
+        )

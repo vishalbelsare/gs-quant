@@ -14,17 +14,52 @@ specific language governing permissions and limitations
 under the License.
 """
 
+import datetime as dt
+
+import numpy as np
+import pandas as pd
 import pytest
-from gs_quant.timeseries import *
-from gs_quant.timeseries.statistics import Direction
+import scipy.stats.mstats as stats
 from pandas.testing import assert_series_equal
 from scipy.integrate import odeint
+
+from gs_quant.data import DataContext
+from gs_quant.errors import MqError, MqTypeError, MqValueError
+from gs_quant.timeseries import Returns, Window, normalize_window, returns
+from gs_quant.timeseries.statistics import (
+    Direction,
+    IntradayDirection,
+    LinearRegression,
+    MeanType,
+    RollingLinearRegression,
+    SEIRModel,
+    SIRModel,
+    cov,
+    exponential_std,
+    generate_series,
+    generate_series_intraday,
+    max_,
+    mean,
+    median,
+    min_,
+    mode,
+    percentile,
+    percentiles,
+    product,
+    range_,
+    std,
+    sum_,
+    var,
+    winsorize,
+    zscores,
+)
 
 
 def _random_series(days=365, nans=10):
     assert nans < days
-    values = np.random.random(days)
-    nan_indexes = np.floor(np.random.random(nans) * len(values)).astype(np.int_)
+    rng = np.random.default_rng()
+    values = rng.random(days)
+    nan_indexes = np.floor(rng.random(nans) * len(values)).astype(np.int_)
     for i in nan_indexes:
         values[i] = np.nan
 
@@ -43,24 +78,48 @@ def _rolling_1m_test(fn, pandas_fn: str):
 def test_generate_series():
     x = generate_series(100)
 
-    assert (len(x) == 100)
-    assert (x.index[0] == datetime.date.today())
-    assert (x[0] == 100)
+    assert len(x) == 100
+    assert x.index[0] == dt.date.today()
+    assert x.iloc[0] == 100
 
     x = generate_series(100, Direction.END_TODAY)
-    assert (len(x) == 100)
-    assert (x.index[-1] == datetime.date.today())
-    assert (x[0] == 100)
+    assert len(x) == 100
+    assert x.index[-1] == dt.date.today()
+    assert x.iloc[0] == 100
+
+
+def test_generate_series_intraday():
+    # Test START_INTRADAY_NOW (default)
+    x = generate_series_intraday(100)
+    assert len(x) == 100
+    assert isinstance(x.index, pd.DatetimeIndex)
+    assert x.iloc[0] == 100
+    # Check that first timestamp is close to now (within 1 minute)
+    now = pd.Timestamp.now().floor('min')
+    assert abs((x.index[0] - now).total_seconds()) < 60
+    # Check that observations are 1 minute apart
+    assert (x.index[-1] - x.index[0]).total_seconds() == 99 * 60
+
+    # Test END_INTRADAY_NOW
+    x = generate_series_intraday(100, IntradayDirection.END_INTRADAY_NOW)
+    assert len(x) == 100
+    assert isinstance(x.index, pd.DatetimeIndex)
+    assert x.iloc[0] == 100
+    # Check that last timestamp is close to now (within 1 minute)
+    now = pd.Timestamp.now().floor('min')
+    assert abs((x.index[-1] - now).total_seconds()) < 60
+    # Check that observations are 1 minute apart
+    assert (x.index[-1] - x.index[0]).total_seconds() == 99 * 60
 
 
 def test_min():
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
-        date(2019, 1, 7),
-        date(2019, 1, 8),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
+        dt.date(2019, 1, 7),
+        dt.date(2019, 1, 8),
     ]
 
     x = pd.Series([3.0, 2.0, 3.0, 1.0, 3.0, 6.0], index=dates)
@@ -109,12 +168,12 @@ def test_min():
 
 def test_max():
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
-        date(2019, 1, 7),
-        date(2019, 1, 8),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
+        dt.date(2019, 1, 7),
+        dt.date(2019, 1, 8),
     ]
 
     x = pd.Series([3.0, 2.0, 3.0, 1.0, 3.0, 6.0], index=dates)
@@ -162,12 +221,12 @@ def test_max():
 
 def test_range():
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
-        date(2019, 1, 7),
-        date(2019, 1, 8),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
+        dt.date(2019, 1, 7),
+        dt.date(2019, 1, 8),
     ]
 
     x = pd.Series([3.0, 2.0, 3.0, 1.0, 3.0, 6.0], index=dates)
@@ -191,12 +250,12 @@ def test_range():
 
 def test_mean():
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
-        date(2019, 1, 7),
-        date(2019, 1, 8),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
+        dt.date(2019, 1, 7),
+        dt.date(2019, 1, 8),
     ]
 
     x = pd.Series([3.0, 2.0, 3.0, 1.0, 3.0, 6.0], index=dates)
@@ -231,14 +290,121 @@ def test_mean():
     assert_series_equal(result, expected, obj="Mean of single series with nan")
 
 
+def test_quadratic_mean():
+    dates = [
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
+        dt.date(2019, 1, 7),
+        dt.date(2019, 1, 8),
+    ]
+
+    x = pd.Series([3.0, 2.0, 3.0, 1.0, 3.0, 6.0], index=dates)
+
+    result = mean(x, mean_type=MeanType.QUADRATIC)
+    expected = pd.Series(
+        [
+            np.sqrt(9.0),
+            np.sqrt((9.0 + 4.0) / 2),
+            np.sqrt((9.0 + 4.0 + 9.0) / 3),
+            np.sqrt((9.0 + 4.0 + 9.0 + 1.0) / 4),
+            np.sqrt((9.0 + 4.0 + 9.0 + 1.0 + 9.0) / 5),
+            np.sqrt((9.0 + 4.0 + 9.0 + 1.0 + 9.0 + 36.0) / 6),
+        ],
+        index=dates,
+    )
+    assert_series_equal(result, expected, obj="Quadratic mean")
+
+    result = mean(x, Window(1, 0), mean_type=MeanType.QUADRATIC)
+    expected = pd.Series([3.0, 2.0, 3.0, 1.0, 3.0, 6.0], index=dates)
+    assert_series_equal(result, expected, obj="Quadratic mean window 1")
+
+    result = mean(x, Window(2, 0), mean_type=MeanType.QUADRATIC)
+    expected = pd.Series(
+        [
+            np.sqrt(9.0),
+            np.sqrt((9.0 + 4.0) / 2),
+            np.sqrt((4.0 + 9.0) / 2),
+            np.sqrt((9.0 + 1.0) / 2),
+            np.sqrt((1.0 + 9.0) / 2),
+            np.sqrt((9.0 + 36.0) / 2),
+        ],
+        index=dates,
+    )
+    assert_series_equal(result, expected, obj="Quadratic mean window 2")
+
+    result = mean(x, Window('1w', 0), mean_type=MeanType.QUADRATIC)
+    expected = pd.Series(
+        [
+            np.sqrt(9.0),
+            np.sqrt((9.0 + 4.0) / 2),
+            np.sqrt((9.0 + 4.0 + 9.0) / 3),
+            np.sqrt((9.0 + 4.0 + 9.0 + 1.0) / 4),
+            np.sqrt((9.0 + 4.0 + 9.0 + 1.0 + 9.0) / 5),
+            np.sqrt((4.0 + 9.0 + 1.0 + 9.0 + 36.0) / 5),
+        ],
+        index=dates,
+    )
+    assert_series_equal(result, expected, obj="Quadratic mean window 1w")
+
+    y = pd.Series([4.0, np.nan, 4.0, 2.0, 2.0, 5.0], index=dates)
+    result = mean([x, y], Window(2, 0), mean_type=MeanType.QUADRATIC)
+    expected = pd.Series(
+        [
+            np.sqrt((9.0 + 16.0) / 2),
+            np.sqrt((9.0 + 4.0 + 16.0) / 3),
+            np.sqrt((4.0 + 9.0 + 16.0) / 3),
+            np.sqrt((9.0 + 1.0 + 16.0 + 4.0) / 4),
+            np.sqrt((1.0 + 9.0 + 4.0 + 4.0) / 4),
+            np.sqrt((9.0 + 36.0 + 4.0 + 25.0) / 4),
+        ],
+        index=dates,
+    )
+    assert_series_equal(result, expected, obj="Quadratic mean of multiple series")
+
+    result = mean([x, y], Window('2d', 0), mean_type=MeanType.QUADRATIC)
+    expected = pd.Series(
+        [
+            np.sqrt((9.0 + 16.0) / 2),
+            np.sqrt((9.0 + 4.0 + 16.0) / 3),
+            np.sqrt((4.0 + 9.0 + 16.0) / 3),
+            np.sqrt((9.0 + 1.0 + 16.0 + 4.0) / 4),
+            np.sqrt((9.0 + 4.0) / 2),
+            np.sqrt((9.0 + 36.0 + 4.0 + 25.0) / 4),
+        ],
+        index=dates,
+    )
+    assert_series_equal(result, expected, obj="Quadratic mean of multiple series by date offset")
+
+    result = mean(y, Window(2, 0), mean_type=MeanType.QUADRATIC)
+    expected = pd.Series(
+        [
+            np.sqrt(16.0),
+            np.sqrt(16.0),
+            np.sqrt(16.0),
+            np.sqrt((16.0 + 4.0) / 2),
+            np.sqrt((4.0 + 4.0) / 2),
+            np.sqrt((4.0 + 25.0) / 2),
+        ],
+        index=dates,
+    )
+    assert_series_equal(result, expected, obj="Quadratic mean of single series with nan")
+
+    z = pd.Series([-3.0, 4.0, -5.0], index=dates[:3])
+    result = mean(z, Window(2, 0), mean_type=MeanType.QUADRATIC)
+    expected = pd.Series([np.sqrt(9.0), np.sqrt((9.0 + 16.0) / 2), np.sqrt((16.0 + 25.0) / 2)], index=dates[:3])
+    assert_series_equal(result, expected, obj="Quadratic mean with negative values")
+
+
 def test_median():
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
-        date(2019, 1, 7),
-        date(2019, 1, 8),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
+        dt.date(2019, 1, 7),
+        dt.date(2019, 1, 8),
     ]
 
     x = pd.Series([3.0, 2.0, 3.0, 1.0, 3.0, 6.0], index=dates)
@@ -264,12 +430,12 @@ def test_median():
 
 def test_mode():
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
-        date(2019, 1, 7),
-        date(2019, 1, 8),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
+        dt.date(2019, 1, 7),
+        dt.date(2019, 1, 8),
     ]
 
     x = pd.Series([3.0, 2.0, 3.0, 1.0, 3.0, 6.0], index=dates)
@@ -300,12 +466,12 @@ def test_mode():
 
 def test_sum():
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
-        date(2019, 1, 7),
-        date(2019, 1, 8),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
+        dt.date(2019, 1, 7),
+        dt.date(2019, 1, 8),
     ]
 
     x = pd.Series([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], index=dates)
@@ -334,12 +500,12 @@ def test_sum():
 
 def test_product():
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
-        date(2019, 1, 7),
-        date(2019, 1, 8),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
+        dt.date(2019, 1, 7),
+        dt.date(2019, 1, 8),
     ]
 
     x = pd.Series([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], index=dates)
@@ -361,12 +527,12 @@ def test_product():
 
 def test_std():
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
-        date(2019, 1, 7),
-        date(2019, 1, 8),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
+        dt.date(2019, 1, 7),
+        dt.date(2019, 1, 8),
     ]
 
     x = pd.Series([3.0, 2.0, 3.0, 1.0, 3.0, 6.0], index=dates)
@@ -391,22 +557,22 @@ def test_exponential_std():
         std = ts * 0
         for i in range(1, len(ts)):
             weights = (1 - alpha) * alpha ** np.arange(i, -1, -1)
-            weights[0] /= (1 - alpha)
-            x = ts.to_numpy()[:i + 1]
+            weights[0] /= 1 - alpha
+            x = ts.to_numpy()[: i + 1]
             ema = sum(weights * x) / sum(weights)
-            debias_fact = sum(weights) ** 2 / (sum(weights) ** 2 - sum(weights ** 2))
+            debias_fact = sum(weights) ** 2 / (sum(weights) ** 2 - sum(weights**2))
             var = debias_fact * sum(weights * (x - ema) ** 2) / sum(weights)
-            std[i] = np.sqrt(var)
-        std[0] = np.NaN
+            std.iloc[i] = np.sqrt(var)
+        std.iloc[0] = np.nan
         return std
 
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
-        date(2019, 1, 7),
-        date(2019, 1, 8),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
+        dt.date(2019, 1, 7),
+        dt.date(2019, 1, 8),
     ]
 
     x = pd.Series([3.0, 2.0, 3.0, 1.0, 3.0, 6.0], index=dates)
@@ -422,12 +588,12 @@ def test_exponential_std():
 
 def test_var():
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
-        date(2019, 1, 7),
-        date(2019, 1, 8),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
+        dt.date(2019, 1, 7),
+        dt.date(2019, 1, 8),
     ]
 
     x = pd.Series([3.0, 2.0, 3.0, 1.0, 3.0, 6.0], index=dates)
@@ -449,12 +615,12 @@ def test_var():
 
 def test_cov():
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
-        date(2019, 1, 7),
-        date(2019, 1, 8),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
+        dt.date(2019, 1, 7),
+        dt.date(2019, 1, 8),
     ]
 
     x = pd.Series([3.0, 2.0, 3.0, 1.0, 3.0, 6.0], index=dates)
@@ -484,12 +650,12 @@ def test_zscores():
     assert_series_equal(zscores(pd.Series([1]), Window(1, 0)), pd.Series([0.0]))
 
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
-        date(2019, 1, 7),
-        date(2019, 1, 8),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
+        dt.date(2019, 1, 7),
+        dt.date(2019, 1, 8),
     ]
 
     x = pd.Series([3.0, 2.0, 3.0, 1.0, 3.0, 6.0], index=dates)
@@ -514,7 +680,7 @@ def test_zscores():
     assert_series_equal(result, expected, obj='z-score window string 1w')
 
     result = zscores(x, '1m')
-    expected = pd.Series(dtype=float)
+    expected = pd.Series(dtype=float, index=[])
     assert_series_equal(result, expected, obj="z-score window too large")
 
 
@@ -533,27 +699,28 @@ def test_winsorize():
         b_upper = mu + sigma * limit * 1.001
         b_lower = mu - sigma * limit * 1.001
 
-        assert (True in r.ge(b_upper).values)
-        assert (True in r.le(b_lower).values)
+        assert True in r.ge(b_upper).values
+        assert True in r.le(b_lower).values
 
         wr = winsorize(r, limit)
 
-        assert (True not in wr.ge(b_upper).values)
-        assert (True not in wr.le(b_lower).values)
+        assert True not in wr.ge(b_upper).values
+        assert True not in wr.le(b_lower).values
 
 
 def test_percentiles():
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
-        date(2019, 1, 7),
-        date(2019, 1, 8),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
+        dt.date(2019, 1, 7),
+        dt.date(2019, 1, 8),
     ]
 
     x = pd.Series([3.0, 2.0, 3.0, 1.0, 3.0, 6.0], index=dates)
     y = pd.Series([3.5, 1.8, 2.9, 1.2, 3.1, 6.0], index=dates)
+    y_with_mismatched_index = pd.Series([3.5, 1.8, 2.9, 1.2, 3.1], index=dates[:-1])
 
     assert_series_equal(percentiles(pd.Series(dtype=float), y), pd.Series(dtype=float))
     assert_series_equal(percentiles(x, pd.Series(dtype=float)), pd.Series(dtype=float))
@@ -567,6 +734,10 @@ def test_percentiles():
     expected = pd.Series([100.0, 0.0, 50.0, 50.0, 100.0, 75.0], index=dates)
     assert_series_equal(result, expected, obj="percentiles with window 2 and ramp 0")
 
+    result = percentiles(x, y_with_mismatched_index, Window(2, 0))
+    expected = pd.Series([100.0, 0.0, 50.0, 50.0, 100.0], index=dates[:-1])
+    assert_series_equal(result, expected, obj="percentiles with mismatched y index")
+
     result = percentiles(x, y, Window('1w', 0))
     expected = pd.Series([100.0, 0.0, 33.333333, 25.0, 100.0, 90.0], index=dates)
     assert_series_equal(result, expected, obj="percentiles with window 1w")
@@ -574,6 +745,10 @@ def test_percentiles():
     result = percentiles(x, y, Window('1w', '3d'))
     expected = pd.Series([25.0, 100.0, 90.0], index=dates[3:])
     assert_series_equal(result, expected, obj="percentiles with window 1w and ramp 3d")
+
+    result = percentiles(x, y, Window(5, '3d'))
+    expected = pd.Series([25.0, 100.0, 90.0], index=dates[3:])
+    assert_series_equal(result, expected, obj="percentiles with window 5 and ramp 3d")
 
     result = percentiles(x)
     expected = pd.Series([50.0, 25.0, 66.667, 12.500, 70.0, 91.667], index=dates)
@@ -596,9 +771,9 @@ def test_percentile():
         percentile(pd.Series(range(5), index=range(5)), 90, "2d")
 
     for n in range(0, 101, 5):
-        assert percentile(pd.Series(x * 10 for x in range(0, 11)), n) == n
+        assert percentile(pd.Series(x * 10 for x in range(11)), n) == n
 
-    x = percentile(pd.Series(x for x in range(0, 5)), 50, 2)
+    x = percentile(pd.Series(x for x in range(5)), 50, 2)
     assert_series_equal(x, pd.Series([1.5, 2.5, 3.5], index=pd.RangeIndex(2, 5)))
 
     x = percentile(pd.Series(dtype=float), 90, "1d")
@@ -606,11 +781,11 @@ def test_percentile():
 
 
 def test_percentile_str():
-    today = datetime.datetime.now()
+    today = dt.datetime.now()
     days = pd.date_range(today, periods=12, freq='D')
     start = pd.Series([29, 56, 82, 13, 35, 53, 25, 23, 21, 12, 15, 9], index=days)
     actual = percentile(start, 2, '10d')
-    expected = pd.Series([12.18, 9.54], index=pd.date_range(today + datetime.timedelta(days=10), periods=2, freq='D'))
+    expected = pd.Series([12.18, 9.54], index=pd.date_range(today + dt.timedelta(days=10), periods=2, freq='D'))
     assert_series_equal(actual, expected)
 
     actual = percentile(start, 50, '1w')
@@ -637,9 +812,10 @@ def test_regression():
     expected = pd.Series([10.0, 14.0, 20.0, 28.0, 38.0, 50.0], index=pd.date_range('2019-1-1', periods=6))
     assert_series_equal(regression.fitted_values(), expected)
 
-    dates_predict = [date(2019, 2, 1), date(2019, 2, 2)]
-    predicted = regression.predict([pd.Series([2.0, 3.0], index=dates_predict),
-                                    pd.Series([6.0, 7.0], index=dates_predict)])
+    dates_predict = [dt.date(2019, 2, 1), dt.date(2019, 2, 2)]
+    predicted = regression.predict(
+        [pd.Series([2.0, 3.0], index=dates_predict), pd.Series([6.0, 7.0], index=dates_predict)]
+    )
     expected = pd.Series([30.0, 34.0], index=dates_predict)
     assert_series_equal(predicted, expected)
 
@@ -738,7 +914,7 @@ def test_sir_model():
     sir1 = SIRModel(beta, gamma, s, i, r, n, fit=False)
 
     with DataContext(end=dt.date.today() + dt.timedelta(days=d - 1)):
-        sir2 = SIRModel(beta, gamma, s[0], i, r[0], n, fit=False)
+        sir2 = SIRModel(beta, gamma, s.iloc[0], i, r.iloc[0], n, fit=False)
 
     assert sir1.beta() == sir1.beta()
     assert sir2.gamma() == sir2.gamma()
@@ -809,7 +985,7 @@ def test_seir_model():
     seir1 = SEIRModel(beta, gamma, sigma, s, e, i, r, n, fit=False)
 
     with DataContext(end=dt.date.today() + dt.timedelta(days=d - 1)):
-        seir2 = SEIRModel(beta, gamma, sigma, s[0], e[0], i, r[0], n, fit=False)
+        seir2 = SEIRModel(beta, gamma, sigma, s.iloc[0], e.iloc[0], i, r.iloc[0], n, fit=False)
 
     assert seir1.beta() == seir1.beta()
     assert seir2.gamma() == seir2.gamma()

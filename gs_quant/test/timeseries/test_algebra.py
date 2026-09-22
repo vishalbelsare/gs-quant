@@ -13,26 +13,45 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
-from datetime import date
 
+import datetime as dt
+import math
+
+import numpy as np
+import pandas as pd
 import pytest
 from pandas.testing import assert_series_equal
 
-from gs_quant.timeseries import *
+from gs_quant.errors import MqError, MqValueError
+from gs_quant.timeseries import (
+    FilterOperator,
+    Interpolate,
+    ThresholdType,
+    algebra,
+    and_,
+    filter_,
+    geometrically_aggregate,
+    if_,
+    not_,
+    or_,
+    repeat,
+    smooth_spikes,
+    weighted_sum,
+)
 
 
 def test_add():
     dates1 = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
     ]
 
     dates2 = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
     ]
 
     x = pd.Series([1.0, 1.0, 1.0, 1.0], index=dates1)
@@ -75,16 +94,16 @@ def test_add():
 
 def test_subtract():
     dates1 = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
     ]
 
     dates2 = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
     ]
 
     x = pd.Series([1.0, 1.0, 1.0, 1.0], index=dates1)
@@ -127,16 +146,16 @@ def test_subtract():
 
 def test_multiply():
     dates1 = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
     ]
 
     dates2 = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
     ]
 
     x = pd.Series([1.0, 2.0, 3.0, 4.0], index=dates1)
@@ -179,16 +198,16 @@ def test_multiply():
 
 def test_divide():
     dates1 = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
     ]
 
     dates2 = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
     ]
 
     x = pd.Series([1.0, 2.0, 3.0, 4.0], index=dates1)
@@ -234,16 +253,16 @@ def test_divide():
 
 def test_floordiv():
     dates1 = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
     ]
 
     dates2 = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
     ]
 
     x = pd.Series([1.0, 2.0, 3.0, 4.0], index=dates1)
@@ -289,9 +308,9 @@ def test_floordiv():
 
 def test_exp():
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
     ]
 
     x = pd.Series([1.0, 2.0, 3.0], index=dates)
@@ -303,9 +322,9 @@ def test_exp():
 
 def test_log():
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
     ]
 
     x = pd.Series([1.0, 2.0, 3.0], index=dates)
@@ -317,9 +336,9 @@ def test_log():
 
 def test_power():
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
     ]
 
     x = pd.Series([1.0, 2.0, 3.0], index=dates)
@@ -331,9 +350,9 @@ def test_power():
 
 def test_sqrt():
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
     ]
 
     x = pd.Series([1.0, 4.0, 9.0], index=dates)
@@ -351,9 +370,9 @@ def test_sqrt():
 
 def test_abs():
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
     ]
 
     x = pd.Series([-1.0, 2.0, -3.0], index=dates)
@@ -365,9 +384,9 @@ def test_abs():
 
 def test_floor():
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
     ]
 
     x = pd.Series([1.0, 2.0, 3.0], index=dates)
@@ -379,9 +398,9 @@ def test_floor():
 
 def test_ceil():
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
     ]
 
     x = pd.Series([1.0, 2.0, 3.0], index=dates)
@@ -392,12 +411,7 @@ def test_ceil():
 
 
 def test_filter():
-    dates1 = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4)
-    ]
+    dates1 = [dt.date(2019, 1, 1), dt.date(2019, 1, 2), dt.date(2019, 1, 3), dt.date(2019, 1, 4)]
 
     all_pos = pd.Series([1.0, 1.0, 1.0, 1.0], index=dates1)
     with_null = pd.Series([1.0, np.nan, 1.0, 1.0], index=dates1)
@@ -412,41 +426,91 @@ def test_filter():
     assert_series_equal(result, expected, obj="zap: remove 0s when no 0s are in TS")
 
     result = filter_(with_null)
-    expected = pd.Series([1.0, 1.0, 1.0],
-                         index=[date(2019, 1, 1),
-                                date(2019, 1, 3), date(2019, 1, 4)])
+    expected = pd.Series([1.0, 1.0, 1.0], index=[dt.date(2019, 1, 1), dt.date(2019, 1, 3), dt.date(2019, 1, 4)])
     assert_series_equal(result, expected, obj="zap: remove nulls in TS")
 
     result = filter_(zero_neg_pos, FilterOperator.EQUALS, 0)
-    expected = pd.Series([-1.0, 10.0, 1.0],
-                         index=[date(2019, 1, 1),
-                                date(2019, 1, 3), date(2019, 1, 4)])
+    expected = pd.Series([-1.0, 10.0, 1.0], index=[dt.date(2019, 1, 1), dt.date(2019, 1, 3), dt.date(2019, 1, 4)])
     assert_series_equal(result, expected, obj="zap: remove 0s in TS")
 
     result = filter_(zero_neg_pos, FilterOperator.GREATER, 0)
-    expected = pd.Series([-1.0, 0.0], index=[date(2019, 1, 1), date(2019, 1, 2)])
+    expected = pd.Series([-1.0, 0.0], index=[dt.date(2019, 1, 1), dt.date(2019, 1, 2)])
     assert_series_equal(result, expected, obj="zap: remove positive values in TS")
 
     result = filter_(zero_neg_pos, FilterOperator.LESS, 0)
-    expected = pd.Series([0.0, 10.0, 1.0], index=[date(2019, 1, 2), date(2019, 1, 3), date(2019, 1, 4)])
+    expected = pd.Series([0.0, 10.0, 1.0], index=[dt.date(2019, 1, 2), dt.date(2019, 1, 3), dt.date(2019, 1, 4)])
     assert_series_equal(result, expected, obj="zap: remove negative values in TS")
 
     result = filter_(zero_neg_pos, FilterOperator.L_EQUALS, 0)
-    expected = pd.Series([10.0, 1.0], index=[date(2019, 1, 3), date(2019, 1, 4)])
+    expected = pd.Series([10.0, 1.0], index=[dt.date(2019, 1, 3), dt.date(2019, 1, 4)])
     assert_series_equal(result, expected, obj="zap: remove values less than or eq to 0 in TS")
 
     result = filter_(zero_neg_pos, FilterOperator.G_EQUALS, 0)
-    expected = pd.Series([-1.0], index=[date(2019, 1, 1)])
+    expected = pd.Series([-1.0], index=[dt.date(2019, 1, 1)])
     assert_series_equal(result, expected, obj="zap: remove values greater than or eq to 0 in TS")
 
     result = filter_(zero_neg_pos, FilterOperator.N_EQUALS, 0)
-    expected = pd.Series([0.0], index=[date(2019, 1, 2)])
+    expected = pd.Series([0.0], index=[dt.date(2019, 1, 2)])
     assert_series_equal(result, expected, obj="zap: remove all values but 0 in TS")
 
     with pytest.raises(MqValueError):
         filter_(zero_neg_pos, 0, 0)
     with pytest.raises(MqValueError):
         filter_(zero_neg_pos, 0)
+
+
+def test_filter_dates():
+    dates = [dt.date(2019, 1, 1), dt.date(2019, 1, 2), dt.date(2019, 1, 3), dt.date(2019, 1, 4)]
+
+    all_pos = pd.Series([1.0, 1.0, 1.0, 1.0], index=dates)
+    with_null = pd.Series([1.0, np.nan, 1.0, 1.0], index=dates)
+
+    result = algebra.filter_dates(all_pos)
+    expected = all_pos
+    assert_series_equal(result, expected, obj="zap: remove nulls when no nulls are in TS")
+
+    result = algebra.filter_dates(with_null)
+    expected = pd.Series([1.0, 1.0, 1.0], index=[dt.date(2019, 1, 1), dt.date(2019, 1, 3), dt.date(2019, 1, 4)])
+    assert_series_equal(result, expected, obj="zap: remove nulls in TS")
+
+    result = algebra.filter_dates(all_pos, FilterOperator.EQUALS, dt.date(2019, 1, 2))
+    expected = pd.Series([1.0, 1.0, 1.0], index=[dt.date(2019, 1, 1), dt.date(2019, 1, 3), dt.date(2019, 1, 4)])
+    assert_series_equal(result, expected, obj="zap: remove date in TS")
+
+    result = algebra.filter_dates(all_pos, FilterOperator.EQUALS, [dt.date(2019, 1, 2), dt.date(2019, 1, 4)])
+    expected = pd.Series([1.0, 1.0], index=[dt.date(2019, 1, 1), dt.date(2019, 1, 3)])
+    assert_series_equal(result, expected, obj="zap: remove dates in TS")
+
+    result = algebra.filter_dates(all_pos, FilterOperator.GREATER, dt.date(2019, 1, 2))
+    expected = pd.Series([1.0, 1.0], index=[dt.date(2019, 1, 1), dt.date(2019, 1, 2)])
+    assert_series_equal(result, expected, obj="zap: remove dates after certain date in TS")
+
+    result = algebra.filter_dates(all_pos, FilterOperator.LESS, dt.date(2019, 1, 3))
+    expected = pd.Series([1.0, 1.0], index=[dt.date(2019, 1, 3), dt.date(2019, 1, 4)])
+    assert_series_equal(result, expected, obj="zap: remove dates before certain date in TS")
+
+    result = algebra.filter_dates(all_pos, FilterOperator.L_EQUALS, dt.date(2019, 1, 2))
+    expected = pd.Series([1.0, 1.0], index=[dt.date(2019, 1, 3), dt.date(2019, 1, 4)])
+    assert_series_equal(result, expected, obj="zap: remove dates on or before certain date in TS")
+
+    result = algebra.filter_dates(all_pos, FilterOperator.G_EQUALS, dt.date(2019, 1, 3))
+    expected = pd.Series([1.0, 1.0], index=[dt.date(2019, 1, 1), dt.date(2019, 1, 2)])
+    assert_series_equal(result, expected, obj="zap: remove dates on or after certain date in TS")
+
+    result = algebra.filter_dates(all_pos, FilterOperator.N_EQUALS, dt.date(2019, 1, 2))
+    expected = pd.Series([1.0], index=[dt.date(2019, 1, 2)])
+    assert_series_equal(result, expected, obj="zap: remove all dates other than certain date in TS")
+
+    result = algebra.filter_dates(all_pos, FilterOperator.N_EQUALS, [dt.date(2019, 1, 2), dt.date(2019, 1, 4)])
+    expected = pd.Series([1.0, 1.0], index=[dt.date(2019, 1, 2), dt.date(2019, 1, 4)])
+    assert_series_equal(result, expected, obj="zap: remove all dates other than certain dates in TS")
+
+    with pytest.raises(MqValueError):
+        algebra.filter_dates(all_pos, 0, 0)
+    with pytest.raises(MqValueError):
+        algebra.filter_dates(all_pos, 0)
+    with pytest.raises(MqValueError):
+        algebra.filter_dates(all_pos, FilterOperator.GREATER, [dt.date(2019, 1, 2), dt.date(2019, 1, 4)])
 
 
 def test_smooth_spikes():
@@ -463,6 +527,26 @@ def test_smooth_spikes():
     s = pd.Series([8, 10.1, 8, 6.4], index=sparse_index)
     actual = smooth_spikes(s, 0.25)
     expected = pd.Series([8.0, 8], index=sparse_index[1:3])
+    assert_series_equal(actual, expected)
+
+    s = pd.Series([0.1, 1.5, 0.2, 2], index=sparse_index)
+    actual = smooth_spikes(s, threshold=1, threshold_type=ThresholdType.absolute)
+    expected = pd.Series([0.15, 1.75], index=sparse_index[1:3])
+    assert_series_equal(actual, expected)
+
+    s = pd.Series([10.1, 8, 12, 10], index=sparse_index)
+    actual = smooth_spikes(s, 1, ThresholdType.absolute)
+    expected = pd.Series([11.05, 9], index=sparse_index[1:3])
+    assert_series_equal(actual, expected)
+
+    s = pd.Series([1, 2, 3, 4], index=sparse_index)
+    actual = smooth_spikes(s, 0.25, ThresholdType.absolute)
+    expected = pd.Series([2.0, 3.0], index=sparse_index[1:3])
+    assert_series_equal(actual, expected)
+
+    s = pd.Series([1, 3, 2, 4], index=sparse_index)
+    actual = smooth_spikes(s, 0.5, ThresholdType.absolute)
+    expected = pd.Series([1.5, 3.5], index=sparse_index[1:3])
     assert_series_equal(actual, expected)
 
 
@@ -540,25 +624,40 @@ def test_if():
 
     assert_series_equal(if_(flags, 2, 3), pd.Series([3, 2]))
     assert_series_equal(if_(flags, truths, pd.Series([3, 3])), pd.Series([3, 2]))
-    assert_series_equal(if_(flags, truths, pd.Series([3], index=[100])),
-                        pd.Series([np.nan, 2]), check_dtype=False)
+    assert_series_equal(if_(flags, truths, pd.Series([3], index=[100])), pd.Series([np.nan, 2]), check_dtype=False)
 
 
 def test_weighted_average():
     empty = pd.Series(dtype=float)
     with pytest.raises(MqError):
-        weighted_sum([empty, 3], [.4, .6])
+        weighted_sum([empty, 3], [0.4, 0.6])
     with pytest.raises(MqError):
-        weighted_sum([empty, empty], [.4, '.6'])
+        weighted_sum([empty, empty], [0.4, '.6'])
     with pytest.raises(MqError):
-        weighted_sum([empty, empty], [.4])
+        weighted_sum([empty, empty], [0.4])
 
     a = pd.Series([1, 2, 3, 4], index=pd.date_range('2020-01-01', periods=4, freq='D'))
     b = pd.Series([24, 27, 30], index=(pd.date_range('2020-01-01', periods=3, freq='D')))
-    actual = weighted_sum([a, b], [.3, .6])
+    actual = weighted_sum([a, b], [0.3, 0.6])
     expected = pd.Series([16.333333, 18.666666, 21], index=pd.date_range('2020-01-01', periods=3))
     expected.index.freq = None
     assert_series_equal(actual, expected)
+
+
+def test_geometrically_aggregate():
+    dates = [
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
+        dt.date(2019, 1, 5),
+    ]
+
+    x = pd.Series([None, 0.05, 0.04, -0.03, 0.12], index=dates)
+
+    result = geometrically_aggregate(x)
+    expected = pd.Series([None, 0.05, 0.09200000000000008, 0.05923999999999996, 0.18634879999999998], index=dates)
+    assert_series_equal(result, expected)
 
 
 if __name__ == '__main__':

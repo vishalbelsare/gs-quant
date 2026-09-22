@@ -14,9 +14,11 @@ specific language governing permissions and limitations
 under the License.
 """
 
-from gs_quant.backtests.data_handler import DataHandler
-from gs_quant.backtests.event import *
 import datetime as dt
+
+from gs_quant.backtests.data_handler import DataHandler
+from gs_quant.backtests.event import FillEvent, OrderEvent
+from gs_quant.backtests.order import OrderBase
 
 
 class ExecutionEngine(object):
@@ -40,9 +42,11 @@ class SimulatedExecutionEngine(ExecutionEngine):
             if end_time > state:
                 break
             else:
-                fill = FillEvent(order=order,
-                                 filled_price=order.execution_price(self.data_handler),
-                                 filled_units=order.execution_quantity())
+                fill = FillEvent(
+                    order=order,
+                    filled_price=order.execution_price(self.data_handler),
+                    filled_units=order.execution_quantity(),
+                )
                 fill_events.append(fill)
                 self.orders.pop(0)
         return fill_events

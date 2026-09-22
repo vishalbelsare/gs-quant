@@ -69,10 +69,11 @@ Portfolio
    :toctree: classes
 
    Portfolio
+   Grid
 
 
-Portfolio Manager
----------
+PortfolioManager
+----------------
 
 .. currentmodule:: gs_quant.markets.portfolio_manager
 
@@ -84,7 +85,7 @@ Portfolio Manager
 
 
 PositionSet
-----------
+-----------
 
 .. currentmodule:: gs_quant.markets.position_set
 
@@ -107,7 +108,6 @@ Securities
    AssetClass
    AssetIdentifier
    AssetType
-   Index
    Stock
    SecurityMaster
 
@@ -129,13 +129,23 @@ Report
 
 
 Optimizer
----------
+------------
 
 .. currentmodule:: gs_quant.markets.optimizer
 
 .. autosummary::
    :toctree: classes
-   :template: portfolio_manager.rst
+   :template: report.rst
 
-   Optimizer
-
+   AssetUniverse
+   AssetConstraint
+   FactorConstraint
+   MaxProportionOfRiskByGroupConstraint
+   CountryConstraint
+   IndustryConstraint
+   SectorConstraint
+   TurnoverConstraint
+   ConstraintPriorities
+   OptimizerSettings
+   OptimizerUniverse
+   OptimizerStrategy

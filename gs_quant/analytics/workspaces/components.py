@@ -17,15 +17,13 @@ under the License.
 import uuid
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Optional
 
-from pydash import unset, snake_case
+from pydash import snake_case, unset
 
 
 class Selection:
-    def __init__(self,
-                 selector_id: str,
-                 tag: str):
+    def __init__(self, selector_id: str, tag: str):
         """
         Selection option.
         :param selector_id: identifier of the selector which applies to this selection
@@ -51,10 +49,7 @@ class Selection:
         self.__tag = value
 
     def as_dict(self):
-        return {
-            'selectorId': self.__selector_id,
-            'tag': self.__tag
-        }
+        return {'selectorId': self.__selector_id, 'tag': self.__tag}
 
     @classmethod
     def from_dict(cls, obj):
@@ -62,11 +57,7 @@ class Selection:
 
 
 class LegendItem:
-    def __init__(self,
-                 color: str,
-                 icon: str,
-                 name: str,
-                 tooltip: str = None):
+    def __init__(self, color: str, icon: str, name: str, tooltip: str = None):
         """
         Item in the legend component
         :param color: color of the legend item
@@ -80,11 +71,7 @@ class LegendItem:
         self.tooltip = tooltip
 
     def as_dict(self):
-        dict_ = {
-            'color': self.color,
-            'icon': self.icon,
-            'name': self.name
-        }
+        dict_ = {'color': self.color, 'icon': self.icon, 'name': self.name}
         if self.tooltip:
             dict_['tooltip'] = self.tooltip
         return dict_
@@ -103,11 +90,7 @@ class RelatedLinkType(Enum):
 
 
 class RelatedLink:
-    def __init__(self,
-                 type_: RelatedLinkType,
-                 name: str,
-                 link: str,
-                 description: str = None):
+    def __init__(self, type_: RelatedLinkType, name: str, link: str, description: str = None):
         """
         Related Link Item
         :param type_: Type of the Related Link
@@ -122,19 +105,16 @@ class RelatedLink:
         # TODO: self.notification_properties
 
     def as_dict(self):
-        dict_ = {
-            'type': self.type_.value,
-            'name': self.name,
-            'link': self.link
-        }
+        dict_ = {'type': self.type_.value, 'name': self.name, 'link': self.link}
         if self.description:
             dict_['description'] = self.description
         return dict_
 
     @classmethod
     def from_dict(cls, obj):
-        return RelatedLink(type_=RelatedLinkType(obj['type']), name=obj['name'], link=obj['link'],
-                           description=obj.get('description'))
+        return RelatedLink(
+            type_=RelatedLinkType(obj['type']), name=obj['name'], link=obj['link'], description=obj.get('description')
+        )
 
 
 class PromoSize(Enum):
@@ -143,13 +123,15 @@ class PromoSize(Enum):
 
 
 class Component(ABC):
-    def __init__(self,
-                 height: Optional[int] = None,
-                 id_: Optional[str] = None,
-                 *,
-                 width: int = None,
-                 selections: List[Selection] = None,
-                 container_ids: List[str] = None):
+    def __init__(
+        self,
+        height: Optional[int] = None,
+        id_: Optional[str] = None,
+        *,
+        width: int = None,
+        selections: list[Selection] = None,
+        container_ids: list[str] = None,
+    ):
         self.__id = id_ or f'{self.__class__.__name__}-{str(uuid.uuid4())[0:5]}'
         self._height = height
         self.__width = width
@@ -198,14 +180,8 @@ class Component(ABC):
         self.__container_ids = value
 
     @abstractmethod
-    def as_dict(self) -> Dict:
-        dict_ = {
-            'id': self.__id,
-            'type': self._type,
-            'parameters': {
-                'height': self._height or 200
-            }
-        }
+    def as_dict(self) -> dict:
+        dict_ = {'id': self.__id, 'type': self._type, 'parameters': {'height': self._height or 200}}
         if self.__selections:
             dict_['selections'] = [selection.as_dict() for selection in self.__selections]
         if self.__container_ids:
@@ -219,8 +195,9 @@ class Component(ABC):
         height = parameters.get('height', 200)
         unset(parameters, 'height')
         unset(parameters, 'width')
-        component = TYPE_TO_COMPONENT[obj['type']](id_=obj['id'], height=height, width=scale,
-                                                   **{snake_case(k): v for k, v in parameters.items()})
+        component = TYPE_TO_COMPONENT[obj['type']](
+            id_=obj['id'], height=height, width=scale, **{snake_case(k): v for k, v in parameters.items()}
+        )
         selections, container_ids, tags = obj.get('selections'), obj.get('containerIds'), obj.get('tags')
         if selections:
             component.selections = [Selection.from_dict(selection) for selection in selections]
@@ -232,14 +209,16 @@ class Component(ABC):
 
 
 class PlotComponent(Component):
-    def __init__(self,
-                 height: int,
-                 id_: str,
-                 *,
-                 width: int = None,
-                 selections: List[Selection] = None,
-                 tooltip: str = None,
-                 hide_legend: bool = False):
+    def __init__(
+        self,
+        height: int,
+        id_: str,
+        *,
+        width: int = None,
+        selections: list[Selection] = None,
+        tooltip: str = None,
+        hide_legend: bool = False,
+    ):
         """
         Plot Component
         :param id_: identifier of the plot
@@ -254,7 +233,7 @@ class PlotComponent(Component):
         self.tooltip = tooltip
         self.hide_legend = hide_legend
 
-    def as_dict(self) -> Dict:
+    def as_dict(self) -> dict:
         dict_ = super().as_dict()
         dict_['parameters']['hideLegend'] = self.hide_legend
         if self.tooltip:
@@ -263,11 +242,7 @@ class PlotComponent(Component):
 
 
 class DataVizComponent(Component):
-    def __init__(self,
-                 height: int,
-                 id_: str,
-                 *,
-                 width: int = None):
+    def __init__(self, height: int, id_: str, *, width: int = None):
         """
         Data Visualization Component
         :param id_: identifier of the Visualization
@@ -277,18 +252,14 @@ class DataVizComponent(Component):
         super().__init__(id_=id_, height=height, width=width)
         self._type = 'dataviz'
 
-    def as_dict(self) -> Dict:
+    def as_dict(self) -> dict:
         return super().as_dict()
 
 
 class DataGridComponent(Component):
-    def __init__(self,
-                 height: int,
-                 id_: str,
-                 *,
-                 width: int = None,
-                 selections: List[Selection] = None,
-                 tooltip: str = None):
+    def __init__(
+        self, height: int, id_: str, *, width: int = None, selections: list[Selection] = None, tooltip: str = None
+    ):
         """
         DataGrid Component
         :param height: height of the component
@@ -301,7 +272,7 @@ class DataGridComponent(Component):
         self._type = 'datagrid'
         self.tooltip = tooltip
 
-    def as_dict(self) -> Dict:
+    def as_dict(self) -> dict:
         dict_ = super().as_dict()
         if self.tooltip:
             dict_['parameters']['tooltip'] = self.tooltip
@@ -310,12 +281,7 @@ class DataGridComponent(Component):
 
 
 class DataScreenerComponent(Component):
-    def __init__(self,
-                 height: int,
-                 id_: str,
-                 *,
-                 width: int = None,
-                 tooltip: str = None):
+    def __init__(self, height: int, id_: str, *, width: int = None, tooltip: str = None):
         """
         Data Screener Component
         :param height: height of the component
@@ -327,7 +293,7 @@ class DataScreenerComponent(Component):
         self._type = 'screener'
         self.tooltip = tooltip
 
-    def as_dict(self) -> Dict:
+    def as_dict(self) -> dict:
         dict_ = super().as_dict()
         if self.tooltip:
             dict_['parameters']['tooltip'] = self.tooltip
@@ -336,15 +302,17 @@ class DataScreenerComponent(Component):
 
 
 class ArticleComponent(Component):
-    def __init__(self,
-                 height: int,
-                 id_: Optional[str] = None,
-                 *,
-                 width: int = None,
-                 selections: List[Selection] = None,
-                 tooltip: str = None,
-                 commentary_channels: List[str] = None,
-                 commentary_to_desktop_link: bool = None):
+    def __init__(
+        self,
+        height: int,
+        id_: Optional[str] = None,
+        *,
+        width: int = None,
+        selections: list[Selection] = None,
+        tooltip: str = None,
+        commentary_channels: list[str] = None,
+        commentary_to_desktop_link: bool = None,
+    ):
         """
         Article Component
         :param height: height of the component
@@ -361,7 +329,7 @@ class ArticleComponent(Component):
         self.commentary_channels = commentary_channels
         self.commentary_to_desktop_link = commentary_to_desktop_link
 
-    def as_dict(self) -> Dict:
+    def as_dict(self) -> dict:
         dict_ = super().as_dict()
         if self.tooltip:
             dict_['parameters']['tooltip'] = self.tooltip
@@ -374,15 +342,17 @@ class ArticleComponent(Component):
 
 
 class CommentaryComponent(Component):
-    def __init__(self,
-                 height: int,
-                 id_: Optional[str] = None,
-                 *,
-                 width: int = None,
-                 selections: List[Selection] = None,
-                 tooltip: str = None,
-                 commentary_channels: List[str] = None,
-                 commentary_to_desktop_link: bool = None):
+    def __init__(
+        self,
+        height: int,
+        id_: Optional[str] = None,
+        *,
+        width: int = None,
+        selections: list[Selection] = None,
+        tooltip: str = None,
+        commentary_channels: list[str] = None,
+        commentary_to_desktop_link: bool = None,
+    ):
         """
         Commentary Component
         :param height: height of the component
@@ -399,7 +369,7 @@ class CommentaryComponent(Component):
         self.commentary_channels = commentary_channels
         self.commentary_to_desktop_link = commentary_to_desktop_link
 
-    def as_dict(self) -> Dict:
+    def as_dict(self) -> dict:
         dict_ = super().as_dict()
         if self.tooltip:
             dict_['parameters']['tooltip'] = self.tooltip
@@ -412,11 +382,7 @@ class CommentaryComponent(Component):
 
 
 class ContainerComponent(Component):
-    def __init__(self,
-                 id_: Optional[str] = None,
-                 *,
-                 width: int = None,
-                 component_id: str = None):
+    def __init__(self, id_: Optional[str] = None, *, width: int = None, component_id: str = None):
         """
         Container Component which acts as a placeholder for components used with selectors
         :param id_: unique identifier of the component
@@ -427,7 +393,7 @@ class ContainerComponent(Component):
         self._type = 'container'
         self.component_id = component_id
 
-    def as_dict(self) -> Dict:
+    def as_dict(self) -> dict:
         dict_ = super().as_dict()
         if self.component_id:
             dict_['parameters']['componentId'] = self.component_id
@@ -436,16 +402,18 @@ class ContainerComponent(Component):
 
 
 class SelectorComponent(Component):
-    def __init__(self,
-                 height: int,
-                 id_: Optional[str] = None,
-                 *,
-                 container_ids: List[str],
-                 width: int = None,
-                 title: str = None,
-                 default_option_index: int = None,
-                 tooltip: str = None,
-                 parent_selector_id: str = None):
+    def __init__(
+        self,
+        height: int,
+        id_: Optional[str] = None,
+        *,
+        container_ids: list[str],
+        width: int = None,
+        title: str = None,
+        default_option_index: int = None,
+        tooltip: str = None,
+        parent_selector_id: str = None,
+    ):
         """
         Selector Component to conditionally pick components based on their selection tags.
         :param height: height of the component
@@ -465,7 +433,7 @@ class SelectorComponent(Component):
         self.tooltip = tooltip
         self.parent_selector_id = parent_selector_id
 
-    def as_dict(self) -> Dict:
+    def as_dict(self) -> dict:
         dict_ = super().as_dict()
         dict_['parameters']['containerIds'] = self.container_ids
 
@@ -487,25 +455,32 @@ class SelectorComponent(Component):
     def from_dict(cls, obj, scale: int = None):
         parameters = obj.get('parameters', {})
 
-        return SelectorComponent(id_=obj['id'], height=parameters.get('height', 200), width=scale,
-                                 title=parameters.get('title'),
-                                 container_ids=parameters['containerIds'], tooltip=parameters.get('tooltip'),
-                                 default_option_index=parameters.get('defaultOptionIndex'),
-                                 parent_selector_id=parameters.get('parentSelectorId'))
+        return SelectorComponent(
+            id_=obj['id'],
+            height=parameters.get('height', 200),
+            width=scale,
+            title=parameters.get('title'),
+            container_ids=parameters['containerIds'],
+            tooltip=parameters.get('tooltip'),
+            default_option_index=parameters.get('defaultOptionIndex'),
+            parent_selector_id=parameters.get('parentSelectorId'),
+        )
 
 
 class PromoComponent(Component):
-    def __init__(self,
-                 height: int,
-                 id_: Optional[str] = None,
-                 *,
-                 width: int = None,
-                 selections: List[Selection] = None,
-                 tooltip: str = None,
-                 transparent: bool = None,
-                 body: str = None,
-                 size: PromoSize = None,
-                 hide_border: bool = None):
+    def __init__(
+        self,
+        height: int,
+        id_: Optional[str] = None,
+        *,
+        width: int = None,
+        selections: list[Selection] = None,
+        tooltip: str = None,
+        transparent: bool = None,
+        body: str = None,
+        size: PromoSize = None,
+        hide_border: bool = None,
+    ):
         """
         Promo Component for arbitrary text
         :param height: height of the component
@@ -526,7 +501,7 @@ class PromoComponent(Component):
         self.size = size
         self.hide_border = hide_border
 
-    def as_dict(self) -> Dict:
+    def as_dict(self) -> dict:
         dict_ = super().as_dict()
         if self.tooltip:
             dict_['parameters']['tooltip'] = self.tooltip
@@ -542,25 +517,33 @@ class PromoComponent(Component):
         return dict_
 
     @classmethod
-    def from_dict(cls, obj: Dict, scale: int = None):
+    def from_dict(cls, obj: dict, scale: int = None):
         parameters = obj.get('parameters', {})
         size = parameters.get('size')
         size = PromoSize(size) if size else None
-        return PromoComponent(id_=obj['id'], height=parameters.get('height', 200), width=scale,
-                              tooltip=parameters.get('tooltip'), body=parameters.get('body'), size=size,
-                              hide_border=parameters.get('hideBorder'))
+        return PromoComponent(
+            id_=obj['id'],
+            height=parameters.get('height', 200),
+            width=scale,
+            tooltip=parameters.get('tooltip'),
+            body=parameters.get('body'),
+            size=size,
+            hide_border=parameters.get('hideBorder'),
+        )
 
 
 class SeparatorComponent(Component):
-    def __init__(self,
-                 height: int,
-                 id_: Optional[str] = None,
-                 *,
-                 width: int = None,
-                 selections: List[Selection] = None,
-                 name: str = None,
-                 size: str = None,
-                 show_more_url: str = None):
+    def __init__(
+        self,
+        height: int,
+        id_: Optional[str] = None,
+        *,
+        width: int = None,
+        selections: list[Selection] = None,
+        name: str = None,
+        size: str = None,
+        show_more_url: str = None,
+    ):
         """
         Separator Component
         :param height: height of the component
@@ -577,7 +560,7 @@ class SeparatorComponent(Component):
         self.size = size
         self.show_more_url = show_more_url
 
-    def as_dict(self) -> Dict:
+    def as_dict(self) -> dict:
         dict_ = super().as_dict()
         if self.name:
             dict_['parameters']['name'] = self.name
@@ -590,15 +573,17 @@ class SeparatorComponent(Component):
 
 
 class LegendComponent(Component):
-    def __init__(self,
-                 height: int,
-                 id_: Optional[str] = None,
-                 *,
-                 width: int = None,
-                 selections: List[Selection] = None,
-                 items: List[LegendItem] = None,
-                 position: str = None,
-                 transparent: bool = None):
+    def __init__(
+        self,
+        height: int,
+        id_: Optional[str] = None,
+        *,
+        width: int = None,
+        selections: list[Selection] = None,
+        items: list[LegendItem] = None,
+        position: str = None,
+        transparent: bool = None,
+    ):
         """
         Legend Component
         :param height: height of the component
@@ -615,7 +600,7 @@ class LegendComponent(Component):
         self.position = position
         self.transparent = transparent
 
-    def as_dict(self) -> Dict:
+    def as_dict(self) -> dict:
         dict_ = super().as_dict()
         dict_['parameters']['items'] = [item.as_dict() for item in self.items]
         if self.position:
@@ -626,23 +611,25 @@ class LegendComponent(Component):
         return dict_
 
     @classmethod
-    def from_dict(cls, obj: Dict, scale: int = None):
+    def from_dict(cls, obj: dict, scale: int = None):
         parameters = obj.get('parameters', {})
         items = [LegendItem.from_dict(item) for item in parameters.get('items', [])]
 
-        return LegendComponent(id_=obj['id'], height=parameters.get('height', 200), width=scale,
-                               selections=obj.get('selections'), position=parameters.get('position'),
-                               transparent=parameters.get('transparent'), items=items)
+        return LegendComponent(
+            id_=obj['id'],
+            height=parameters.get('height', 200),
+            width=scale,
+            selections=obj.get('selections'),
+            position=parameters.get('position'),
+            transparent=parameters.get('transparent'),
+            items=items,
+        )
 
 
 class MonitorComponent(Component):
-    def __init__(self,
-                 height: int,
-                 id_: str,
-                 *,
-                 width: int = None,
-                 selections: List[Selection] = None,
-                 tooltip: str = None):
+    def __init__(
+        self, height: int, id_: str, *, width: int = None, selections: list[Selection] = None, tooltip: str = None
+    ):
         """
         Monitor Component
         :param height: height of the component
@@ -655,7 +642,7 @@ class MonitorComponent(Component):
         self._type = 'monitor'
         self.tooltip = tooltip
 
-    def as_dict(self) -> Dict:
+    def as_dict(self) -> dict:
         dict_ = super().as_dict()
         if self.tooltip:
             dict_['parameters']['tooltip'] = self.tooltip
@@ -664,14 +651,16 @@ class MonitorComponent(Component):
 
 
 class RelatedLinksComponent(Component):
-    def __init__(self,
-                 height: int,
-                 id_: Optional[str] = None,
-                 *,
-                 width: int = None,
-                 selections: List[Selection] = None,
-                 links: List[RelatedLink],
-                 title: str):
+    def __init__(
+        self,
+        height: int,
+        id_: Optional[str] = None,
+        *,
+        width: int = None,
+        selections: list[Selection] = None,
+        links: list[RelatedLink],
+        title: str,
+    ):
         """
         Related Links Component
         :param height: height of the component
@@ -686,7 +675,7 @@ class RelatedLinksComponent(Component):
         self.links = links
         self.title = title
 
-    def as_dict(self) -> Dict:
+    def as_dict(self) -> dict:
         dict_ = super().as_dict()
         dict_['parameters']['title'] = self.title
         dict_['parameters']['links'] = [link.as_dict() for link in self.links]
@@ -695,9 +684,14 @@ class RelatedLinksComponent(Component):
     @classmethod
     def from_dict(cls, obj, scale: int = None):
         parameters = obj.get('parameters', {})
-        return RelatedLinksComponent(id_=obj['id'], height=parameters.get('height', 200), width=scale,
-                                     selections=obj.get('selections'), title=parameters['title'],
-                                     links=[RelatedLink.from_dict(link) for link in parameters['links']])
+        return RelatedLinksComponent(
+            id_=obj['id'],
+            height=parameters.get('height', 200),
+            width=scale,
+            selections=obj.get('selections'),
+            title=parameters['title'],
+            links=[RelatedLink.from_dict(link) for link in parameters['links']],
+        )
 
 
 TYPE_TO_COMPONENT = {
@@ -712,5 +706,5 @@ TYPE_TO_COMPONENT = {
     'relatedLinks': RelatedLinksComponent,
     'selector': SelectorComponent,
     'separator': SeparatorComponent,
-    'screener': DataScreenerComponent
+    'screener': DataScreenerComponent,
 }

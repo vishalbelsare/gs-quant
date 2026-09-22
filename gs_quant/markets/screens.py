@@ -13,26 +13,30 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
-import logging
-from datetime import date
-from enum import Enum, unique
-from typing import Union, Tuple
 
-from pandas import DataFrame
-from pydash import set_, get
+import datetime as dt
+import logging
+from enum import Enum, unique
+from typing import Union
+
+import pandas as pd
+from pydash import get, set_
 
 from gs_quant.api.gs.screens import GsScreenApi
 from gs_quant.errors import MqValueError
-from gs_quant.target.assets_screener import AssetScreenerCreditRequestFilters, AssetScreenerRequest, \
-    AssetScreenerRequestFilterLimits, AssetScreenerRequestStringOptions
-from gs_quant.target.screens import Screen as TargetScreen, ScreenParameters as TargetScreenParameters
-from gs_quant.common import Currency as CurrencyImport
+from gs_quant.target.assets_screener import (
+    AssetScreenerCreditRequestFilters,
+    AssetScreenerRequest,
+    AssetScreenerRequestFilterLimits,
+    AssetScreenerRequestStringOptions,
+)
+from gs_quant.target.screens import Screen as TargetScreen, ScreenerQueryBuilder
 
 logging.root.setLevel('INFO')
 
 
 class RangeFilter:
-    """ Respresents asset filters that are ranges """
+    """Respresents asset filters that are ranges"""
 
     def __init__(self, min_: Union[float, str] = None, max_: Union[float, str] = None):
         self.__min = min_
@@ -94,15 +98,10 @@ class Direction(Enum):
     SELL = "Sell"
 
 
-@unique
-class Currency(CurrencyImport, Enum):
-    pass
-
-
 class CheckboxFilter:
-    """ Represents asset filters that have multiple enumerated options"""
+    """Represents asset filters that have multiple enumerated options"""
 
-    def __init__(self, checkbox_type: CheckboxType = None, selections: Tuple[Enum] = None):
+    def __init__(self, checkbox_type: CheckboxType = None, selections: tuple[Enum, ...] = None):
         self.__selections = selections
         self.__checkbox_type = checkbox_type
 
@@ -119,43 +118,45 @@ class CheckboxFilter:
         self.__checkbox_type = value
 
     @property
-    def selections(self) -> Tuple[Enum]:
+    def selections(self) -> tuple[Enum, ...]:
         return self.__selections
 
     @selections.setter
-    def selections(self, value: Tuple[Enum]):
+    def selections(self, value: tuple[Enum, ...]):
         self.__selections = value
 
-    def add(self, new_selections: Tuple[Enum]):
+    def add(self, new_selections: tuple[Enum, ...]):
         new_selections = set(new_selections)
         old_selections = set(self.selections)
         self.selections = tuple(set(new_selections).union(set(old_selections)))
 
-    def remove(self, remove_selections: Tuple[Enum]):
+    def remove(self, remove_selections: tuple[Enum, ...]):
         remove_selections = set(remove_selections)
         old_selections = set(self.selections)
         self.selections = tuple(old_selections.difference(remove_selections))
 
 
 class ScreenFilters:
-    def __init__(self,
-                 face_value: float = 1000000,
-                 direction: str = "Buy",
-                 liquidity_score: RangeFilter = RangeFilter(),
-                 gs_charge_bps: RangeFilter = RangeFilter(),
-                 gs_charge_dollars: RangeFilter = RangeFilter(),
-                 duration: RangeFilter = RangeFilter(),
-                 yield_: RangeFilter = RangeFilter(),
-                 spread: RangeFilter = RangeFilter(),
-                 z_spread: RangeFilter = RangeFilter(),
-                 g_spread: RangeFilter = RangeFilter(),
-                 mid_price: RangeFilter = RangeFilter(),
-                 maturity: RangeFilter = RangeFilter(),
-                 amount_outstanding: RangeFilter = RangeFilter(),
-                 letter_rating: RangeFilter = RangeFilter(),
-                 seniority: CheckboxFilter = CheckboxFilter(),
-                 currency: CheckboxFilter = CheckboxFilter(),
-                 sector: CheckboxFilter = CheckboxFilter()):
+    def __init__(
+        self,
+        face_value: float = 1000000,
+        direction: str = "Buy",
+        liquidity_score: RangeFilter = RangeFilter(),
+        gs_charge_bps: RangeFilter = RangeFilter(),
+        gs_charge_dollars: RangeFilter = RangeFilter(),
+        duration: RangeFilter = RangeFilter(),
+        yield_: RangeFilter = RangeFilter(),
+        spread: RangeFilter = RangeFilter(),
+        z_spread: RangeFilter = RangeFilter(),
+        g_spread: RangeFilter = RangeFilter(),
+        mid_price: RangeFilter = RangeFilter(),
+        maturity: RangeFilter = RangeFilter(),
+        amount_outstanding: RangeFilter = RangeFilter(),
+        letter_rating: RangeFilter = RangeFilter(),
+        seniority: CheckboxFilter = CheckboxFilter(),
+        currency: CheckboxFilter = CheckboxFilter(),
+        sector: CheckboxFilter = CheckboxFilter(),
+    ):
         self.__face_value = face_value
         self.__direction = direction
         self.__liquidity_score = liquidity_score
@@ -253,7 +254,7 @@ class ScreenFilters:
     @property
     def spread(self) -> RangeFilter:
         """Spread between the yields of a debt security and its benchmark when both are
-           purchased at bid price."""
+        purchased at bid price."""
         return self.__spread
 
     @spread.setter
@@ -273,7 +274,7 @@ class ScreenFilters:
     @property
     def g_spread(self) -> RangeFilter:
         """Difference between yield on treasury bonds and yield on corporate bonds of same
-           maturity."""
+        maturity."""
         return self.__g_spread
 
     @g_spread.setter
@@ -303,7 +304,7 @@ class ScreenFilters:
     @property
     def amount_outstanding(self) -> RangeFilter:
         """Aggregate principal amount of the total number of bonds not redeemed or
-           otherwise discharged."""
+        otherwise discharged."""
         return self.__amount_outstanding
 
     @amount_outstanding.setter
@@ -356,7 +357,7 @@ class ScreenFilters:
 
 
 class Screen:
-    """"Private variables"""
+    """ "Private variables"""
 
     def __init__(self, filters: ScreenFilters = None, screen_id: str = None, name: str = None):
         if not filters:
@@ -365,7 +366,7 @@ class Screen:
             self.__filters = filters
 
         self.__id = screen_id
-        self.__name = name if name is not None else f"Screen {date.today().strftime('%d-%b-%Y')}"
+        self.__name = name if name is not None else f"Screen {dt.date.today().strftime('%d-%b-%Y')}"
 
     @property
     def id(self) -> str:
@@ -393,11 +394,11 @@ class Screen:
         return Screen.__from_target(screen)
 
     def calculate(self, format_: str = None):
-        """ Applies screen filters, returning assets that satisfy the condition(s) """
+        """Applies screen filters, returning assets that satisfy the condition(s)"""
         filters = self.__to_target_filters()
         payload = AssetScreenerRequest(filters=filters)
         assets = GsScreenApi.calculate(payload)
-        dataframe = DataFrame(assets)
+        dataframe = pd.DataFrame(assets)
         if format_ == 'json':
             return dataframe['results'].to_json(indent=4)
         if format_ == 'csv':
@@ -405,9 +406,9 @@ class Screen:
         return dataframe
 
     def save(self):
-        """ Create a screen using GsScreenApi if it doesn't exist. Update the report if it does. """
-        parameters = self.__to_target_parameters()
-        target_screen = TargetScreen(name=self.name, parameters=parameters)
+        """Create a screen using GsScreenApi if it doesn't exist. Update the report if it does."""
+        query_builder = self.__to_target_query_builder()
+        target_screen = TargetScreen(name=self.name, query_builder=query_builder)
         if self.id:
             target_screen.id = self.id
             GsScreenApi.update_screen(target_screen)
@@ -417,7 +418,7 @@ class Screen:
             logging.info(f'New screen created with ID: {self.id} \n')
 
     def delete(self):
-        """ Hits GsScreensApi to delete a report """
+        """Hits GsScreensApi to delete a report"""
         GsScreenApi.delete_screen(self.id)
 
     @classmethod
@@ -435,8 +436,9 @@ class Screen:
                 payload[name] = AssetScreenerRequestFilterLimits(min_=filters[name].min, max_=filters[name].max)
             elif isinstance(filters[name], CheckboxFilter):
                 if filters[name].selections and filters[name].checkbox_type:
-                    payload[name] = AssetScreenerRequestStringOptions(options=filters[name].selections,
-                                                                      type_=filters[name].checkbox_type)
+                    payload[name] = AssetScreenerRequestStringOptions(
+                        options=filters[name].selections, type_=filters[name].checkbox_type
+                    )
         return AssetScreenerCreditRequestFilters(**payload)
 
     def __set_up_filters(self) -> dict:
@@ -445,31 +447,6 @@ class Screen:
             set_(filters, prop, get(self.__filters, prop))
         return filters
 
-    def __to_target_parameters(self) -> TargetScreenParameters:
-        payload = {}
-        parameters = self.__set_up_parameters()
-
-        for name in parameters:
-            if name == 'face_value' or name == 'direction':
-                payload[name] = parameters[name]
-            elif isinstance(parameters[name], RangeFilter):
-                payload[name] = AssetScreenerRequestFilterLimits(min_=parameters[name].min, max_=parameters[name].max)
-            elif isinstance(parameters[name], CheckboxFilter):
-                if parameters[name].selections and parameters[name].checkbox_type:
-                    payload[name] = parameters[name].selections
-        return TargetScreenParameters(**payload)
-
-    def __set_up_parameters(self) -> dict:
-        filter_to_parameter = {'face_value': 'face_value', 'direction': 'direction',
-                               'gs_liquidity_score': 'liquidity_score', 'gs_charge_bps': 'gs_charge_bps',
-                               'gs_charge_dollars': 'gs_charge_dollars', 'modified_duration': 'duration',
-                               'yield_to_convention': 'yield_', 'spread_to_benchmark': 'spread', 'z_spread': 'z_spread',
-                               'g_spread': 'g_spread', 'bval_mid_price': 'mid_price', 'maturity': 'maturity',
-                               'amount_outstanding': 'amount_outstanding', 'rating_standard_and_poors': 'rating',
-                               'seniority': 'seniority', 'currency': 'currency', 'sector': 'sector',
-                               'issue_date': 'issue_date'}
-
-        parameters = {}
-        for prop in TargetScreenParameters.properties():
-            set_(parameters, prop, get(self.__filters, filter_to_parameter[prop]))
-        return parameters
+    def __to_target_query_builder(self) -> ScreenerQueryBuilder:
+        filters = self.__set_up_filters()
+        return ScreenerQueryBuilder(filters=filters)

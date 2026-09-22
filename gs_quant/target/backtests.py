@@ -28,6 +28,7 @@ class BacktestRiskMeasureType(EnumBase, Enum):
     """The type of measure to perform risk on. e.g. Greeks"""
 
     Price = 'Price'
+    Price_Percent = 'Price Percent'
     Delta = 'Delta'
     Gamma = 'Gamma'
     Vega = 'Vega'
@@ -35,8 +36,12 @@ class BacktestRiskMeasureType(EnumBase, Enum):
     Implied_Volatility = 'Implied Volatility'
     Fair_Variance = 'Fair Variance'
     Strike_Level = 'Strike Level'
+    Spot = 'Spot'
     Price_ATMS = 'Price ATMS'
-    Price_ATMF_Volatility = 'Price ATMF Volatility'    
+    Price_ATMF_Volatility = 'Price ATMF Volatility'
+    Barrier_Level = 'Barrier Level'
+    Strike_Level_Adj_Implied = 'Strike Level Adj Implied'
+    Strike_Level_Adj_Realised = 'Strike Level Adj Realised'    
 
 
 class BacktestTradingQuantityType(EnumBase, Enum):    
@@ -85,15 +90,13 @@ class FlowVolBacktestMeasure(EnumBase, Enum):
     PNL_higher_order_spot = 'PNL_higher_order_spot'
     PNL_higher_order_vol = 'PNL_higher_order_vol'
     PNL_theta = 'PNL_theta'
-    Total = 'Total'
-    transaction_costs = 'transaction_costs'
+    PNL_transactions = 'PNL_transactions'
     PNL_unexplained = 'PNL_unexplained'
     PNL_vega = 'PNL_vega'
     PNL = 'PNL'
     delta = 'delta'
     gamma = 'gamma'
     vega = 'vega'
-    portfolio = 'portfolio'
     NAV = 'NAV'    
 
 
@@ -126,12 +129,34 @@ class BacktestSignalSeriesItem(Base):
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
+BacktestStrategySignal = dict[str, float]
+
+
+@handle_camel_case_args
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(unsafe_hash=True, repr=False)
+class BacktestStrategyTransactionCostModelFixed(Base):
+    cost: Optional[float] = field(default=None, metadata=field_metadata)
+    type_: Optional[str] = field(init=False, default='FixedCostModel', metadata=config(field_name='type', exclude=exclude_none))
+    name: Optional[str] = field(default=None, metadata=name_metadata)
+
+
+@handle_camel_case_args
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(unsafe_hash=True, repr=False)
+class BacktestStrategyTransactionCostModelScaled(Base):
+    scaling_level: Optional[float] = field(default=None, metadata=field_metadata)
+    scaling_quantity_type: Optional[str] = field(default=None, metadata=field_metadata)
+    type_: Optional[str] = field(init=False, default='ScaledCostModel', metadata=config(field_name='type', exclude=exclude_none))
+    name: Optional[str] = field(default=None, metadata=name_metadata)
+
+
 @handle_camel_case_args
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
 class BaseIndexRefData(Base):
     default: Optional[str] = field(default=None, metadata=field_metadata)
-    enum: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    enum: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -140,7 +165,7 @@ class BaseIndexRefData(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class BuySellRefData(Base):
     default: Optional[str] = field(default=None, metadata=field_metadata)
-    enum: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    enum: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -172,7 +197,7 @@ class DeltaHedgingParameters(Base):
 class EnhancedBetaUnderlier(Base):
     asset_id: str = field(default=None, metadata=field_metadata)
     month_add: Optional[float] = field(default=None, metadata=field_metadata)
-    valid_months: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    valid_months: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     is_included: Optional[bool] = field(default=None, metadata=field_metadata)
     weight_scale: Optional[float] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
@@ -183,7 +208,7 @@ class EnhancedBetaUnderlier(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class EnhancedBetaUnderlierRefData(Base):
     asset_id: Optional[str] = field(default=None, metadata=field_metadata)
-    valid_months: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    valid_months: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     current: Optional[bool] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
@@ -203,7 +228,7 @@ class EntityCorrelation(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class ExpirationRefData(Base):
     default: Optional[str] = field(default=None, metadata=field_metadata)
-    enum: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    enum: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -212,7 +237,7 @@ class ExpirationRefData(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class FixingTimeRefData(Base):
     default: Optional[str] = field(default=None, metadata=field_metadata)
-    enum: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    enum: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -221,7 +246,7 @@ class FixingTimeRefData(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class FrequencyRefData(Base):
     default: Optional[str] = field(default=None, metadata=field_metadata)
-    enum: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    enum: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -240,7 +265,7 @@ class HistoricalUnderlier(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class LookBackPeriodRefData(Base):
     default: Optional[str] = field(default=None, metadata=field_metadata)
-    enum: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    enum: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -259,7 +284,7 @@ class NotionalPercentageRefData(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class OptionStrikeTypeRefData(Base):
     default: Optional[str] = field(default=None, metadata=field_metadata)
-    enum: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    enum: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -268,7 +293,7 @@ class OptionStrikeTypeRefData(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class OptionTypeRefData(Base):
     default: Optional[str] = field(default=None, metadata=field_metadata)
-    enum: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    enum: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -277,7 +302,7 @@ class OptionTypeRefData(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class ScalingMethodRefData(Base):
     default: Optional[str] = field(default=None, metadata=field_metadata)
-    enum: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    enum: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -296,7 +321,7 @@ class StrikeRefData(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class TradeInMethodRefData(Base):
     default: Optional[str] = field(default=None, metadata=field_metadata)
-    enum: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    enum: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -305,7 +330,7 @@ class TradeInMethodRefData(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class TradeInTimeRefData(Base):
     default: Optional[str] = field(default=None, metadata=field_metadata)
-    enum: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    enum: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -340,25 +365,10 @@ class BacktestStrategyUnderlierHedge(Base):
 @handle_camel_case_args
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
-class BacktestTradingParameters(Base):
-    quantity_type: Optional[BacktestTradingQuantityType] = field(default=None, metadata=field_metadata)
-    quantity: Optional[float] = field(default=None, metadata=field_metadata)
-    trade_in_method: Optional[str] = field(default=None, metadata=field_metadata)
-    roll_frequency: Optional[str] = field(default=None, metadata=field_metadata)
-    roll_date_mode: Optional[str] = field(default=None, metadata=field_metadata)
-    scaling_method: Optional[str] = field(default=None, metadata=field_metadata)
-    trade_in_signals: Optional[Tuple[BacktestSignalSeriesItem, ...]] = field(default=None, metadata=field_metadata)
-    trade_out_signals: Optional[Tuple[BacktestSignalSeriesItem, ...]] = field(default=None, metadata=field_metadata)
-    name: Optional[str] = field(default=None, metadata=name_metadata)
-
-
-@handle_camel_case_args
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(unsafe_hash=True, repr=False)
 class BasketBacktestParameters(Base):
-    underliers: Tuple[Union[float, str], ...] = field(default=None, metadata=field_metadata)
+    underliers: tuple[Union[float, str], ...] = field(default=None, metadata=field_metadata)
     rebalance_parameters: Optional[BacktestRebalanceParameters] = field(default=None, metadata=field_metadata)
-    weighting_modifiers: Optional[Tuple[VolatilityWeightedWeightingModifier, ...]] = field(default=None, metadata=field_metadata)
+    weighting_modifiers: Optional[tuple[VolatilityWeightedWeightingModifier, ...]] = field(default=None, metadata=field_metadata)
     weighting_strategy: Optional[str] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
@@ -368,7 +378,7 @@ class BasketBacktestParameters(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class CurrencyRefData(Base):
     default: Optional[Currency] = field(default=None, metadata=field_metadata)
-    enum: Optional[Tuple[Currency, ...]] = field(default=None, metadata=field_metadata)
+    enum: Optional[tuple[Currency, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -386,7 +396,7 @@ class DeltaHedgingRefData(Base):
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
 class EnhancedBetaBacktestParameters(Base):
-    underliers: Tuple[EnhancedBetaUnderlier, ...] = field(default=None, metadata=field_metadata)
+    underliers: tuple[EnhancedBetaUnderlier, ...] = field(default=None, metadata=field_metadata)
     roll_start: float = field(default=None, metadata=field_metadata)
     roll_end: float = field(default=None, metadata=field_metadata)
     base_index: str = field(default=None, metadata=field_metadata)
@@ -398,7 +408,7 @@ class EnhancedBetaBacktestParameters(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class ISelectBacktestParameters(Base):
     max_leverage: float = field(default=None, metadata=field_metadata)
-    underliers: Tuple[HistoricalUnderlier, ...] = field(default=None, metadata=field_metadata)
+    underliers: tuple[HistoricalUnderlier, ...] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -442,7 +452,7 @@ class UnderlyingAssetIdDataRefData(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class BacktestPerformanceDecomposition(Base):
     name: Optional[str] = field(default=None, metadata=field_metadata)
-    performance: Optional[Tuple[FieldValueMap, ...]] = field(default=None, metadata=field_metadata)
+    performance: Optional[tuple[FieldValueMap, ...]] = field(default=None, metadata=field_metadata)
     stats: Optional[PerformanceStats] = field(default=None, metadata=field_metadata)
 
 
@@ -451,7 +461,7 @@ class BacktestPerformanceDecomposition(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class BacktestRisk(Base):
     name: Optional[str] = field(default=None, metadata=field_metadata)
-    timeseries: Optional[Tuple[FieldValueMap, ...]] = field(default=None, metadata=field_metadata)
+    timeseries: Optional[tuple[FieldValueMap, ...]] = field(default=None, metadata=field_metadata)
 
 
 @handle_camel_case_args
@@ -468,13 +478,35 @@ class BacktestRiskPosition(Base):
 @handle_camel_case_args
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
-class BacktestStrategyUnderlier(Base):
-    instrument: DictBase = field(default=None, metadata=field_metadata)
-    market_model: EquityMarketModel = field(default=None, metadata=field_metadata)
-    notional_percentage: Optional[float] = field(default=None, metadata=field_metadata)
-    expiry_date_mode: Optional[str] = field(default=None, metadata=field_metadata)
-    name: Optional[str] = field(default=None, metadata=field_metadata)
-    hedge: Optional[BacktestStrategyUnderlierHedge] = field(default=None, metadata=field_metadata)
+class BacktestStrategyTransactionCostModelAggregate(Base):
+    models: Optional[tuple[Union[BacktestStrategyTransactionCostModelFixed, BacktestStrategyTransactionCostModelScaled], ...]] = field(default=None, metadata=field_metadata)
+    aggregation_type: Optional[str] = field(default=None, metadata=field_metadata)
+    type_: Optional[str] = field(init=False, default='AggregateCostModel', metadata=config(field_name='type', exclude=exclude_none))
+    name: Optional[str] = field(default=None, metadata=name_metadata)
+
+
+@handle_camel_case_args
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(unsafe_hash=True, repr=False)
+class BacktestStrategyTransactionCost(Base):
+    entry: Optional[Union[BacktestStrategyTransactionCostModelAggregate, BacktestStrategyTransactionCostModelFixed, BacktestStrategyTransactionCostModelScaled]] = field(default=None, metadata=field_metadata)
+    exit_: Optional[Union[BacktestStrategyTransactionCostModelAggregate, BacktestStrategyTransactionCostModelFixed, BacktestStrategyTransactionCostModelScaled]] = field(default=None, metadata=config(field_name='exit', exclude=exclude_none))
+    name: Optional[str] = field(default=None, metadata=name_metadata)
+
+
+@handle_camel_case_args
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(unsafe_hash=True, repr=False)
+class BacktestTradingParameters(Base):
+    quantity_type: Optional[BacktestTradingQuantityType] = field(default=None, metadata=field_metadata)
+    quantity: Optional[Union[BacktestStrategySignal, float]] = field(default=None, metadata=field_metadata)
+    trade_in_method: Optional[str] = field(default=None, metadata=field_metadata)
+    roll_frequency: Optional[str] = field(default=None, metadata=field_metadata)
+    roll_date_mode: Optional[str] = field(default=None, metadata=field_metadata)
+    scaling_method: Optional[str] = field(default=None, metadata=field_metadata)
+    trade_in_signals: Optional[tuple[BacktestSignalSeriesItem, ...]] = field(default=None, metadata=field_metadata)
+    trade_out_signals: Optional[tuple[BacktestSignalSeriesItem, ...]] = field(default=None, metadata=field_metadata)
+    name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
 @handle_camel_case_args
@@ -493,7 +525,7 @@ class BasketBacktestRefData(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class ComparisonBacktestResult(Base):
     stats: Optional[PerformanceStats] = field(default=None, metadata=field_metadata)
-    performance: Optional[Tuple[FieldValueMap, ...]] = field(default=None, metadata=field_metadata)
+    performance: Optional[tuple[FieldValueMap, ...]] = field(default=None, metadata=field_metadata)
     id_: Optional[str] = field(default=None, metadata=config(field_name='id', exclude=exclude_none))
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
@@ -515,8 +547,8 @@ class EnhancedBetaRefData(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class UnderlyingAssetIdRefData(Base):
     default: Optional[str] = field(default=None, metadata=field_metadata)
-    enum: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    data: Optional[Tuple[UnderlyingAssetIdDataRefData, ...]] = field(default=None, metadata=field_metadata)
+    enum: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    data: Optional[tuple[UnderlyingAssetIdDataRefData, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -524,7 +556,7 @@ class UnderlyingAssetIdRefData(Base):
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
 class VolatilityBacktestParameters(Base):
-    underliers: Tuple[OptionBacktestUnderlier, ...] = field(default=None, metadata=field_metadata)
+    underliers: tuple[OptionBacktestUnderlier, ...] = field(default=None, metadata=field_metadata)
     trade_in_method: Optional[str] = field(default=None, metadata=field_metadata)
     scaling_method: Optional[str] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
@@ -535,14 +567,15 @@ class VolatilityBacktestParameters(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class BacktestResult(Base):
     backtest_id: Optional[str] = field(default=None, metadata=field_metadata)
-    performance: Optional[Tuple[FieldValueMap, ...]] = field(default=None, metadata=field_metadata)
-    portfolio: Optional[Tuple[FieldValueMap, ...]] = field(default=None, metadata=field_metadata)
+    performance: Optional[tuple[FieldValueMap, ...]] = field(default=None, metadata=field_metadata)
+    portfolio: Optional[tuple[FieldValueMap, ...]] = field(default=None, metadata=field_metadata)
     stats: Optional[PerformanceStats] = field(default=None, metadata=field_metadata)
-    performance_decompositions: Optional[Tuple[BacktestPerformanceDecomposition, ...]] = field(default=None, metadata=field_metadata)
-    risks: Optional[Tuple[BacktestRisk, ...]] = field(default=None, metadata=field_metadata)
-    history: Optional[Tuple[PerformanceRange, ...]] = field(default=None, metadata=field_metadata)
-    underlier_correlation: Optional[Tuple[EntityCorrelation, ...]] = field(default=None, metadata=field_metadata)
-    comparisons: Optional[Tuple[BacktestComparison, ...]] = field(default=None, metadata=field_metadata)
+    performance_decompositions: Optional[tuple[BacktestPerformanceDecomposition, ...]] = field(default=None, metadata=field_metadata)
+    risks: Optional[tuple[BacktestRisk, ...]] = field(default=None, metadata=field_metadata)
+    events: Optional[tuple[BacktestRisk, ...]] = field(default=None, metadata=field_metadata)
+    history: Optional[tuple[PerformanceRange, ...]] = field(default=None, metadata=field_metadata)
+    underlier_correlation: Optional[tuple[EntityCorrelation, ...]] = field(default=None, metadata=field_metadata)
+    comparisons: Optional[tuple[BacktestComparison, ...]] = field(default=None, metadata=field_metadata)
     backtest_version: Optional[float] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
@@ -551,10 +584,20 @@ class BacktestResult(Base):
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
 class BacktestRiskRequest(Base):
-    positions: Tuple[BacktestRiskPosition, ...] = field(default=None, metadata=field_metadata)
-    measures: Tuple[BacktestRiskMeasureType, ...] = field(default=None, metadata=field_metadata)
+    positions: tuple[BacktestRiskPosition, ...] = field(default=None, metadata=field_metadata)
+    measures: tuple[BacktestRiskMeasureType, ...] = field(default=None, metadata=field_metadata)
     start_date: Optional[datetime.date] = field(default=None, metadata=field_metadata)
     end_date: Optional[datetime.date] = field(default=None, metadata=field_metadata)
+    dates: Optional[tuple[datetime.date, ...]] = field(default=None, metadata=field_metadata)
+    name: Optional[str] = field(default=None, metadata=name_metadata)
+
+
+@handle_camel_case_args
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(unsafe_hash=True, repr=False)
+class BacktestStrategyUnderlierTransactionCost(Base):
+    trade: Optional[BacktestStrategyTransactionCost] = field(default=None, metadata=field_metadata)
+    hedge: Optional[BacktestStrategyTransactionCost] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -583,11 +626,40 @@ class VolBacktestRefData(Base):
 @handle_camel_case_args
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
+class BacktestRefData(Base):
+    id_: Optional[str] = field(default=None, metadata=config(field_name='id', exclude=exclude_none))
+    volatility: Optional[DictBase] = field(default=None, metadata=field_metadata)
+    enhanced_beta: Optional[EnhancedBetaRefData] = field(default=None, metadata=config(field_name='enhanced_beta', exclude=exclude_none))
+    basket: Optional[BasketBacktestRefData] = field(default=None, metadata=field_metadata)
+    owner_id: Optional[str] = field(default=None, metadata=field_metadata)
+    entitlements: Optional[Entitlements] = field(default=None, metadata=field_metadata)
+    entitlement_exclusions: Optional[EntitlementExclusions] = field(default=None, metadata=field_metadata)
+    last_updated_by_id: Optional[str] = field(default=None, metadata=field_metadata)
+    last_updated_time: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
+    name: Optional[str] = field(default=None, metadata=name_metadata)
+
+
+@handle_camel_case_args
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(unsafe_hash=True, repr=False)
+class BacktestStrategyUnderlier(Base):
+    instrument: DictBase = field(default=None, metadata=field_metadata)
+    market_model: EquityMarketModel = field(default=None, metadata=field_metadata)
+    notional_percentage: Optional[float] = field(default=None, metadata=field_metadata)
+    expiry_date_mode: Optional[str] = field(default=None, metadata=field_metadata)
+    name: Optional[str] = field(default=None, metadata=field_metadata)
+    hedge: Optional[BacktestStrategyUnderlierHedge] = field(default=None, metadata=field_metadata)
+    transaction_cost: Optional[BacktestStrategyUnderlierTransactionCost] = field(default=None, metadata=field_metadata)
+
+
+@handle_camel_case_args
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(unsafe_hash=True, repr=False)
 class VolatilityFlowBacktestParameters(Base):
     trading_parameters: BacktestTradingParameters = field(default=None, metadata=field_metadata)
     index_initial_value: float = field(default=None, metadata=field_metadata)
-    underliers: Optional[Tuple[BacktestStrategyUnderlier, ...]] = field(default=None, metadata=field_metadata)
-    measures: Optional[Tuple[FlowVolBacktestMeasure, ...]] = field(default=('ALL MEASURES',), metadata=field_metadata)
+    underliers: Optional[tuple[BacktestStrategyUnderlier, ...]] = field(default=None, metadata=field_metadata)
+    measures: Optional[tuple[FlowVolBacktestMeasure, ...]] = field(default=('ALL MEASURES',), metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -609,24 +681,9 @@ class Backtest(Base):
     last_updated_time: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
     mq_symbol: Optional[str] = field(default=None, metadata=field_metadata)
     owner_id: Optional[str] = field(default=None, metadata=field_metadata)
-    report_ids: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    parameters: Optional[DictBase] = field(default=None, metadata=field_metadata)
+    report_ids: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    parameters: Optional[Union[BasketBacktestParameters, EnhancedBetaBacktestParameters, ISelectBacktestParameters, VolatilityBacktestParameters, VolatilityFlowBacktestParameters]] = field(default=None, metadata=field_metadata)
     start_date: Optional[datetime.date] = field(default=None, metadata=field_metadata)
     end_date: Optional[datetime.date] = field(default=None, metadata=field_metadata)
     version: Optional[float] = field(default=None, metadata=field_metadata)
-
-
-@handle_camel_case_args
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(unsafe_hash=True, repr=False)
-class BacktestRefData(Base):
-    id_: Optional[str] = field(default=None, metadata=config(field_name='id', exclude=exclude_none))
-    volatility: Optional[DictBase] = field(default=None, metadata=field_metadata)
-    enhanced_beta: Optional[EnhancedBetaRefData] = field(default=None, metadata=config(field_name='enhanced_beta', exclude=exclude_none))
-    basket: Optional[BasketBacktestRefData] = field(default=None, metadata=field_metadata)
-    owner_id: Optional[str] = field(default=None, metadata=field_metadata)
-    entitlements: Optional[Entitlements] = field(default=None, metadata=field_metadata)
-    entitlement_exclusions: Optional[EntitlementExclusions] = field(default=None, metadata=field_metadata)
-    last_updated_by_id: Optional[str] = field(default=None, metadata=field_metadata)
-    last_updated_time: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
-    name: Optional[str] = field(default=None, metadata=name_metadata)
+    cash_accrual: Optional[bool] = field(default=True, metadata=field_metadata)

@@ -13,25 +13,30 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
+
 import datetime as dt
 import inspect
 import logging
 import warnings
 from copy import deepcopy
-from typing import Iterable, Optional, Tuple, Union
+from typing import Iterable, Optional, Union
 
 from dataclasses_json import global_config
 
 from gs_quant.api.gs.parser import GsParserApi
 from gs_quant.api.gs.risk import GsRiskApi
-from gs_quant.base import get_enum_value, InstrumentBase, Priceable, Scenario
-from gs_quant.common import AssetClass, AssetType, XRef, RiskMeasure
+from gs_quant.base import InstrumentBase, Priceable, Scenario, get_enum_value
+from gs_quant.common import AssetClass, AssetType, MultiScenario, RiskMeasure, XRef
 from gs_quant.markets import HistoricalPricingContext, MarketDataCoordinate, PricingContext
 from gs_quant.priceable import PriceableImpl
-from gs_quant.risk import FloatWithInfo, DataFrameWithInfo, SeriesWithInfo, ResolvedInstrumentValues, \
-    DEPRECATED_MEASURES
-from gs_quant.risk.results import ErrorValue, MultipleRiskMeasureFuture, PricingFuture, MultipleScenarioFuture
-from gs_quant.target.common import MultiScenario
+from gs_quant.risk import (
+    DEPRECATED_MEASURES,
+    DataFrameWithInfo,
+    FloatWithInfo,
+    ResolvedInstrumentValues,
+    SeriesWithInfo,
+)
+from gs_quant.risk.results import ErrorValue, MultipleRiskMeasureFuture, MultipleScenarioFuture, PricingFuture
 
 _logger = logging.getLogger(__name__)
 
@@ -40,12 +45,19 @@ class Instrument(PriceableImpl, InstrumentBase):
     PROVIDER = GsRiskApi
     __instrument_mappings = {}
 
+    def __repr__(self):
+        return f'{self.__class__.__name__}{"(" + self.name + ")" if self.name else ""}'
+
     @classmethod
     def __asset_class_and_type_to_instrument(cls):
         if not cls.__instrument_mappings:
-            import gs_quant.target.instrument as instrument_
-            instrument_classes = [c for _, c in inspect.getmembers(instrument_, inspect.isclass) if
-                                  issubclass(c, Instrument) and c is not Instrument]
+            import gs_quant.target.instrument as instrument_  # noqa
+
+            instrument_classes = [
+                c
+                for _, c in inspect.getmembers(instrument_, inspect.isclass)
+                if issubclass(c, Instrument) and c is not Instrument
+            ]
 
             cls.__instrument_mappings[(AssetClass.Cash, AssetType.Currency)] = instrument_.Forward
 
@@ -101,9 +113,17 @@ class Instrument(PriceableImpl, InstrumentBase):
 
         return self.calc(ResolvedInstrumentValues, fn=handle_result)
 
-    def calc(self, risk_measure: Union[RiskMeasure, Iterable[RiskMeasure]], fn=None) \
-            -> Union[DataFrameWithInfo, ErrorValue, FloatWithInfo, PriceableImpl, PricingFuture,
-                     SeriesWithInfo, Tuple[MarketDataCoordinate, ...]]:
+    def calc(
+        self, risk_measure: Union[RiskMeasure, Iterable[RiskMeasure]], fn=None
+    ) -> Union[
+        DataFrameWithInfo,
+        ErrorValue,
+        FloatWithInfo,
+        PriceableImpl,
+        PricingFuture,
+        SeriesWithInfo,
+        tuple[MarketDataCoordinate, ...],
+    ]:
         """
         Calculate the value of the risk_measure
 
@@ -146,16 +166,23 @@ class Instrument(PriceableImpl, InstrumentBase):
         """
 
         def get_inst_futures(curr_measure):
-            return MultipleScenarioFuture(self, multi_scenario.scenarios,
-                                          (curr_measure.pricing_context.calc(self, curr_measure),)) \
-                if multi_scenario else curr_measure.pricing_context.calc(self, curr_measure)
+            return (
+                MultipleScenarioFuture(
+                    self, multi_scenario.scenarios, (curr_measure.pricing_context.calc(self, curr_measure),)
+                )
+                if multi_scenario
+                else curr_measure.pricing_context.calc(self, curr_measure)
+            )
 
         single_measure = isinstance(risk_measure, RiskMeasure)
         multi_scenario = next((i for i in Scenario.path if isinstance(i, MultiScenario)), None)
 
         with self._pricing_context:
-            future = get_inst_futures(risk_measure) if single_measure else \
-                MultipleRiskMeasureFuture(self, {r: get_inst_futures(r) for r in risk_measure})
+            future = (
+                get_inst_futures(risk_measure)
+                if single_measure
+                else MultipleRiskMeasureFuture(self, {r: get_inst_futures(r) for r in risk_measure})
+            )
 
         # Warn on use of deprecated measures
         def warning_on_one_line(msg, category, _filename, _lineno, _file=None, _line=None):
@@ -163,8 +190,10 @@ class Instrument(PriceableImpl, InstrumentBase):
 
         for measure in (risk_measure,) if single_measure else risk_measure:
             if measure.name in DEPRECATED_MEASURES.keys():
-                message = '{0} risk measure is deprecated. Please use {1} instead and pass in arguments to describe ' \
-                          'risk measure specifics.\n'.format(measure.name, DEPRECATED_MEASURES[measure.name])
+                message = (
+                    '{0} risk measure is deprecated. Please use {1} instead and pass in arguments to describe '
+                    'risk measure specifics.\n'.format(measure.name, DEPRECATED_MEASURES[measure.name])
+                )
                 warnings.simplefilter('once')
                 warnings.formatwarning = warning_on_one_line
                 warnings.warn(message, DeprecationWarning)
@@ -195,6 +224,7 @@ class Instrument(PriceableImpl, InstrumentBase):
             values_used = values.get('builder', values.get('defn', values))
             if builder_type:
                 from gs_quant_internal.base import decode_quill_value
+
                 return decode_quill_value(values_used)
 
             asset_class_field = next((f for f in ('asset_class', 'assetClass') if f in values), None)
@@ -208,9 +238,9 @@ class Instrument(PriceableImpl, InstrumentBase):
             security_types = (None, '', 'Security')
             default_type = Security if asset_type in security_types and asset_class in security_types else None
 
-            instrument = Instrument.__asset_class_and_type_to_instrument().get((
-                get_enum_value(AssetClass, asset_class),
-                get_enum_value(AssetType, asset_type)), default_type)
+            instrument = Instrument.__asset_class_and_type_to_instrument().get(
+                (get_enum_value(AssetClass, asset_class), get_enum_value(AssetType, asset_type)), default_type
+            )
 
             if instrument is None:
                 raise ValueError('unable to build instrument')
@@ -240,8 +270,9 @@ class Instrument(PriceableImpl, InstrumentBase):
             raise ValueError('Invalid instrument specification')
 
     @classmethod
-    def from_asset_ids(cls, asset_ids: Tuple[str, ...]) -> Tuple[InstrumentBase, ...]:
+    def from_asset_ids(cls, asset_ids: tuple[str, ...]) -> tuple[InstrumentBase, ...]:
         from gs_quant.api.gs.assets import GsAssetApi
+
         instruments = GsAssetApi.get_instruments_for_asset_ids(asset_ids)
 
         try:
@@ -267,16 +298,16 @@ class Instrument(PriceableImpl, InstrumentBase):
     def flip(self, in_place: bool = True):
         return self.scale(-1, in_place)
 
-    def scale(self, scaling: float, in_place: bool = True):
+    def scale(self, scaling: float, in_place: bool = True, check_resolved=True):
         if scaling is None:
             return self
         if not hasattr(self, 'scale_in_place'):
             raise NotImplementedError(f'scale_in_place not implemented on {type(self).__name__}')
         if in_place:
-            self.scale_in_place(scaling)
+            self.scale_in_place(scaling, check_resolved=check_resolved)
             return
         new_inst = deepcopy(self)
-        new_inst.scale(scaling)
+        new_inst.scale(scaling, check_resolved=check_resolved)
         return new_inst
 
 
@@ -301,14 +332,16 @@ class DummyInstrument(Instrument):
 class Security(XRef, Instrument):
     """A security, specified by a well-known identifier"""
 
-    def __init__(self,
-                 ticker: str = None,
-                 bbid: str = None,
-                 ric: str = None,
-                 isin: str = None,
-                 cusip: str = None,
-                 prime_id: str = None,
-                 quantity: float = 1):
+    def __init__(
+        self,
+        ticker: str = None,
+        bbid: str = None,
+        ric: str = None,
+        isin: str = None,
+        cusip: str = None,
+        prime_id: str = None,
+        quantity: float = 1,
+    ):
         """
         Create a security by passing one identifier only and, optionally, a quantity
 
@@ -325,6 +358,10 @@ class Security(XRef, Instrument):
         XRef.__init__(self, ticker=ticker, bbid=bbid, ric=ric, isin=isin, cusip=cusip, prime_id=prime_id)
         Instrument.__init__(self)
         self.quantity_ = quantity
+
+    @classmethod
+    def from_dict(cls, env):
+        return cls(**{k: v for k, v in env.items() if k in inspect.signature(cls).parameters})
 
 
 def encode_instrument(instrument: Optional[Instrument]) -> Optional[dict]:

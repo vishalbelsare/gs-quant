@@ -13,27 +13,26 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
-from datetime import date
+
+import datetime as dt
 
 import pytest
-from gs_quant.session import GsSession, Environment
 
-from gs_quant.analytics.datagrid import DataGrid, DataColumn, DataRow
-from gs_quant.analytics.processors import EntityProcessor, ChangeProcessor, AppendProcessor
-from gs_quant.data import DataCoordinate, DataMeasure, DataFrequency
+from gs_quant.analytics.datagrid import DataColumn, DataGrid, DataRow
+from gs_quant.analytics.processors import AppendProcessor, ChangeProcessor, EntityProcessor
+from gs_quant.data import DataCoordinate, DataFrequency, DataMeasure
 from gs_quant.datetime.relative_date import RelativeDate
+from gs_quant.session import Environment, GsSession
 from gs_quant.test.utils.datagrid_test_utils import get_test_entity
 
 
 def test_simple_datagrid():
     name = 'Testing'
-    SPX = get_test_entity('MA4B66MW5E27U8P32SB')
+    spx = get_test_entity('MA4B66MW5E27U8P32SB')
     rows = [
-        DataRow(SPX),
+        DataRow(spx),
     ]
-    columns = [
-        DataColumn(name="Name", processor=EntityProcessor(field="short_name"))
-    ]
+    columns = [DataColumn(name="Name", processor=EntityProcessor(field="short_name"))]
 
     datagrid = DataGrid(name=name, rows=rows, columns=columns)
 
@@ -49,8 +48,9 @@ def test_simple_datagrid():
 
 
 def test_rdate_datagrid(mocker):
-    mocker.patch.object(GsSession.__class__, 'default_value',
-                        return_value=GsSession.get(Environment.QA, 'client_id', 'secret'))
+    mocker.patch.object(
+        GsSession.__class__, 'default_value', return_value=GsSession.get(Environment.QA, 'client_id', 'secret')
+    )
     name = 'Testing'
     SPX = get_test_entity('MA4B66MW5E27U8P32SB')
     close = DataCoordinate(
@@ -66,15 +66,17 @@ def test_rdate_datagrid(mocker):
         DataRow(SPX),
     ]
     columns = [
-        DataColumn(name="1d Chg (RT)",
-                   processor=ChangeProcessor(AppendProcessor(close, last_trade_price,
-                                                             start=RelativeDate("-1d",
-                                                                                base_date=date(2021, 1, 22)))))
+        DataColumn(
+            name="1d Chg (RT)",
+            processor=ChangeProcessor(
+                AppendProcessor(close, last_trade_price, start=RelativeDate("-1d", base_date=dt.date(2021, 1, 22)))
+            ),
+        )
     ]
 
     datagrid = DataGrid(name=name, rows=rows, columns=columns)
     start_date = datagrid.columns[0].processor.children['a'].start
-    assert start_date.base_date == RelativeDate('-1d', base_date=date(2021, 1, 22)).base_date
+    assert start_date.base_date == RelativeDate('-1d', base_date=dt.date(2021, 1, 22)).base_date
     assert start_date.rule == RelativeDate('-1d').rule
 
     datagrid.initialize()
@@ -88,9 +90,10 @@ def test_rdate_datagrid(mocker):
 
     # Check that base_date is not persisted when not passed in.
     columns = [
-        DataColumn(name="1d Chg (RT)",
-                   processor=ChangeProcessor(AppendProcessor(close, last_trade_price,
-                                                             start=RelativeDate("-1d"))))
+        DataColumn(
+            name="1d Chg (RT)",
+            processor=ChangeProcessor(AppendProcessor(close, last_trade_price, start=RelativeDate("-1d"))),
+        )
     ]
     datagrid = DataGrid(name=name, rows=rows, columns=columns)
     as_dict = datagrid.as_dict()

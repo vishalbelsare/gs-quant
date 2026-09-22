@@ -13,11 +13,12 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
+
 import datetime as dt
 import logging
 from collections import defaultdict
 from enum import Enum
-from typing import Union, List, Dict, Optional
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -28,7 +29,7 @@ from gs_quant.api.gs.hedges import GsHedgeApi
 from gs_quant.errors import MqValueError
 from gs_quant.markets.position_set import PositionSet
 from gs_quant.session import GsSession
-from gs_quant.target.hedge import HedgeObjective, CorporateActionsTypes
+from gs_quant.target.hedge import CorporateActionsTypes, HedgeObjective
 
 _logger = logging.getLogger(__name__)
 
@@ -54,12 +55,14 @@ class HedgeExclusions:
     List of assets, countries, regions, sectors, and industries to exclude from the hedge universe
     """
 
-    def __init__(self,
-                 assets: List[str] = None,
-                 countries: List[str] = None,
-                 regions: List[str] = None,
-                 sectors: List[str] = None,
-                 industries: List[str] = None):
+    def __init__(
+        self,
+        assets: list[str] = None,
+        countries: list[str] = None,
+        regions: list[str] = None,
+        sectors: list[str] = None,
+        industries: list[str] = None,
+    ):
         self.__assets = assets
         self.__countries = countries
         self.__regions = regions
@@ -67,43 +70,43 @@ class HedgeExclusions:
         self.__industries = industries
 
     @property
-    def assets(self) -> List[str]:
+    def assets(self) -> list[str]:
         return self.__assets
 
     @assets.setter
-    def assets(self, value: List[str]):
+    def assets(self, value: list[str]):
         self.__assets = value
 
     @property
-    def countries(self) -> List[str]:
+    def countries(self) -> list[str]:
         return self.__countries
 
     @countries.setter
-    def countries(self, value: List[str]):
+    def countries(self, value: list[str]):
         self.__countries = value
 
     @property
-    def regions(self) -> List[str]:
+    def regions(self) -> list[str]:
         return self.__regions
 
     @regions.setter
-    def regions(self, value: List[str]):
+    def regions(self, value: list[str]):
         self.__regions = value
 
     @property
-    def sectors(self) -> List[str]:
+    def sectors(self) -> list[str]:
         return self.__sectors
 
     @sectors.setter
-    def sectors(self, value: List[str]):
+    def sectors(self, value: list[str]):
         self.__sectors = value
 
     @property
-    def industries(self) -> List[str]:
+    def industries(self) -> list[str]:
         return self.__industries
 
     @industries.setter
-    def industries(self, value: List[str]):
+    def industries(self, value: list[str]):
         self.__industries = value
 
     def to_dict(self):
@@ -124,20 +127,21 @@ class HedgeExclusions:
         return response
 
     @staticmethod
-    def _get_exclusions(exclusions_list: List, constraint_type: ConstraintType):
-        return [Constraint(constraint_name=exclusion,
-                           constraint_type=constraint_type,
-                           minimum=0,
-                           maximum=0).to_dict() for exclusion in exclusions_list]
+    def _get_exclusions(exclusions_list: list, constraint_type: ConstraintType):
+        return [
+            Constraint(constraint_name=exclusion, constraint_type=constraint_type, minimum=0, maximum=0).to_dict()
+            for exclusion in exclusions_list
+        ]
 
 
 class Constraint:
-
-    def __init__(self,
-                 constraint_name: str,
-                 minimum: float = 0,
-                 maximum: float = 100,
-                 constraint_type: Optional[ConstraintType] = None):
+    def __init__(
+        self,
+        constraint_name: str,
+        minimum: float = 0,
+        maximum: float = 100,
+        constraint_type: Optional[ConstraintType] = None,
+    ):
         self.__constraint_name = constraint_name
         self.__minimum = minimum
         self.__maximum = maximum
@@ -176,24 +180,22 @@ class Constraint:
         self.__constraint_type = value
 
     @classmethod
-    def from_dict(cls, as_dict: Dict):
+    def from_dict(cls, as_dict: dict):
         if as_dict.get('type') is not None:
             constraint_type = ConstraintType(as_dict.get('type'))
         elif as_dict.get('assetId') is not None:
             constraint_type = ConstraintType.ASSET
         else:
             constraint_type = ConstraintType.ESG
-        return Constraint(constraint_name=as_dict.get('name') or as_dict.get('assetId'),
-                          constraint_type=constraint_type,
-                          minimum=as_dict.get('min'),
-                          maximum=as_dict.get('max'))
+        return Constraint(
+            constraint_name=as_dict.get('name') or as_dict.get('assetId'),
+            constraint_type=constraint_type,
+            minimum=as_dict.get('min'),
+            maximum=as_dict.get('max'),
+        )
 
     def to_dict(self):
-        response = {
-            'name': self.constraint_name,
-            'min': self.minimum,
-            'max': self.maximum
-        }
+        response = {'name': self.constraint_name, 'min': self.minimum, 'max': self.maximum}
         if self.constraint_type != ConstraintType.ESG and self.constraint_type != ConstraintType.ASSET:
             response['type'] = self.constraint_type.value
         if self.constraint_type == ConstraintType.ASSET:
@@ -208,13 +210,15 @@ class HedgeConstraints:
     List of assets, countries, sectors, and industries to constrain in the hedge universe
     """
 
-    def __init__(self,
-                 assets: List[Constraint] = None,
-                 countries: List[Constraint] = None,
-                 regions: List[Constraint] = None,
-                 sectors: List[Constraint] = None,
-                 industries: List[Constraint] = None,
-                 esg: List[Constraint] = None):
+    def __init__(
+        self,
+        assets: list[Constraint] = None,
+        countries: list[Constraint] = None,
+        regions: list[Constraint] = None,
+        sectors: list[Constraint] = None,
+        industries: list[Constraint] = None,
+        esg: list[Constraint] = None,
+    ):
         for con in assets or []:
             con.constraint_type = ConstraintType.ASSET
         for con in regions or []:
@@ -235,51 +239,51 @@ class HedgeConstraints:
         self.__esg = esg
 
     @property
-    def assets(self) -> List[Constraint]:
+    def assets(self) -> list[Constraint]:
         return self.__assets
 
     @assets.setter
-    def assets(self, value: List[Constraint]):
+    def assets(self, value: list[Constraint]):
         self.__assets = value
 
     @property
-    def countries(self) -> List[Constraint]:
+    def countries(self) -> list[Constraint]:
         return self.__countries
 
     @countries.setter
-    def countries(self, value: List[Constraint]):
+    def countries(self, value: list[Constraint]):
         self.__countries = value
 
     @property
-    def regions(self) -> List[Constraint]:
+    def regions(self) -> list[Constraint]:
         return self.__regions
 
     @regions.setter
-    def regions(self, value: List[Constraint]):
+    def regions(self, value: list[Constraint]):
         self.__regions = value
 
     @property
-    def sectors(self) -> List[Constraint]:
+    def sectors(self) -> list[Constraint]:
         return self.__sectors
 
     @sectors.setter
-    def sectors(self, value: List[Constraint]):
+    def sectors(self, value: list[Constraint]):
         self.__sectors = value
 
     @property
-    def industries(self) -> List[Constraint]:
+    def industries(self) -> list[Constraint]:
         return self.__industries
 
     @industries.setter
-    def industries(self, value: List[Constraint]):
+    def industries(self, value: list[Constraint]):
         self.__industries = value
 
     @property
-    def esg(self) -> List[Constraint]:
+    def esg(self) -> list[Constraint]:
         return self.__esg
 
     @esg.setter
-    def esg(self, value: List[Constraint]):
+    def esg(self, value: list[Constraint]):
         self.__esg = value
 
     def to_dict(self):
@@ -307,28 +311,30 @@ class PerformanceHedgeParameters:
     """Parameters for a performance replication hedge calculation."""
 
     def __init__(
-            self,
-            initial_portfolio: PositionSet,
-            universe: List[str],
-            exclusions: Optional[HedgeExclusions] = None,
-            constraints: Optional[HedgeConstraints] = None,
-            observation_start_date: dt.date = None,
-            sampling_period: str = 'Daily',
-            max_leverage: float = 100,
-            percentage_in_cash: Optional[float] = None,
-            explode_universe: bool = True,
-            exclude_target_assets: bool = True,
-            exclude_corporate_actions_types: Optional[List[Union[CorporateActionsTypes, str]]] = None,
-            exclude_hard_to_borrow_assets: bool = False,
-            exclude_restricted_assets: bool = False,
-            max_adv_percentage: float = 15,
-            max_return_deviation: float = 5,
-            max_weight: float = 100,
-            min_market_cap: Optional[float] = None,
-            max_market_cap: Optional[float] = None,
-            market_participation_rate: float = 10,
-            lasso_weight: float = 0,
-            ridge_weight: float = 0):
+        self,
+        initial_portfolio: PositionSet,
+        universe: list[str],
+        exclusions: Optional[HedgeExclusions] = None,
+        constraints: Optional[HedgeConstraints] = None,
+        observation_start_date: dt.date = None,
+        sampling_period: str = 'Daily',
+        max_leverage: float = 100,
+        percentage_in_cash: Optional[float] = None,
+        explode_universe: bool = True,
+        exclude_target_assets: bool = True,
+        exclude_corporate_actions_types: Optional[list[Union[CorporateActionsTypes, str]]] = None,
+        exclude_hard_to_borrow_assets: bool = False,
+        exclude_restricted_assets: bool = False,
+        max_adv_percentage: float = 15,
+        max_return_deviation: float = 5,
+        max_weight: float = 100,
+        min_market_cap: Optional[float] = None,
+        max_market_cap: Optional[float] = None,
+        market_participation_rate: float = 10,
+        lasso_weight: float = 0,
+        ridge_weight: float = 0,
+        benchmarks: list[str] = None,
+    ):
         self.__initial_portfolio = initial_portfolio
         self.__universe = universe
         self.__exclusions = exclusions
@@ -350,6 +356,7 @@ class PerformanceHedgeParameters:
         self.__market_participation_rate = market_participation_rate
         self.__lasso_weight = lasso_weight
         self.__ridge_weight = ridge_weight
+        self.__benchmarks = benchmarks
 
     @property
     def initial_portfolio(self) -> PositionSet:
@@ -361,13 +368,13 @@ class PerformanceHedgeParameters:
         self.__initial_portfolio = value
 
     @property
-    def universe(self) -> List[str]:
+    def universe(self) -> list[str]:
         """A list of asset identifiers (asset IDs, bloomberg IDs, tickers, SEDOLs, etc) that make up the universe,
         which are resolved as of the observation end date."""
         return self.__universe
 
     @universe.setter
-    def universe(self, value: List[str]):
+    def universe(self, value: list[str]):
         self.__universe = value
 
     @property
@@ -427,7 +434,7 @@ class PerformanceHedgeParameters:
     @property
     def explode_universe(self) -> bool:
         """Explode the assets in the universe into their underliers to be used as the hedge
-           universe."""
+        universe."""
         return self.__explode_universe
 
     @explode_universe.setter
@@ -444,18 +451,18 @@ class PerformanceHedgeParameters:
         self.__exclude_target_assets = value
 
     @property
-    def exclude_corporate_actions_types(self) -> Optional[List[Union[CorporateActionsTypes, str]]]:
+    def exclude_corporate_actions_types(self) -> Optional[list[Union[CorporateActionsTypes, str]]]:
         """Set of of corporate actions to be excluded in the hedge"""
         return self.__exclude_corporate_actions_types
 
     @exclude_corporate_actions_types.setter
-    def exclude_corporate_actions_types(self, value: List[Union[CorporateActionsTypes, str]]):
+    def exclude_corporate_actions_types(self, value: list[Union[CorporateActionsTypes, str]]):
         self.__exclude_corporate_actions_types = value
 
     @property
     def exclude_hard_to_borrow_assets(self) -> bool:
         """Whether hard to borrow assets should be excluded in the universe or not. True
-           for exclude."""
+        for exclude."""
         return self.__exclude_hard_to_borrow_assets
 
     @exclude_hard_to_borrow_assets.setter
@@ -474,7 +481,7 @@ class PerformanceHedgeParameters:
     @property
     def max_adv_percentage(self) -> float:
         """Maximum percentage notional to average daily dollar volume allowed for any hedge
-           constituent."""
+        constituent."""
         return self.__max_adv_percentage
 
     @max_adv_percentage.setter
@@ -484,7 +491,7 @@ class PerformanceHedgeParameters:
     @property
     def max_return_deviation(self) -> float:
         """Maximum percentage difference in annualized return between the target and the
-           hedge result."""
+        hedge result."""
         return self.__max_return_deviation
 
     @max_return_deviation.setter
@@ -521,7 +528,7 @@ class PerformanceHedgeParameters:
     @property
     def market_participation_rate(self) -> float:
         """Maximum market participation rate used to estimate the cost of trading a
-           portfolio of stocks. This does not effect the optimization."""
+        portfolio of stocks. This does not effect the optimization."""
         return self.__market_participation_rate
 
     @market_participation_rate.setter
@@ -529,12 +536,12 @@ class PerformanceHedgeParameters:
         self.__market_participation_rate = value
 
     @property
-    def benchmarks(self) -> List[str]:
+    def benchmarks(self) -> list[str]:
         """Marquee unique identifiers of assets to be used as benchmarks."""
         return self.__benchmarks
 
     @benchmarks.setter
-    def benchmarks(self, value: List[str]):
+    def benchmarks(self, value: list[str]):
         self.__benchmarks = value
 
     @property
@@ -555,7 +562,7 @@ class PerformanceHedgeParameters:
     def ridge_weight(self, value: float):
         self.__ridge_weight = value
 
-    def to_dict(self):
+    def to_dict(self, resolved_identifiers):
         positions_to_price = []
         for position in self.initial_portfolio.positions:
             pos_to_price = {'assetId': position.asset_id}
@@ -570,15 +577,15 @@ class PerformanceHedgeParameters:
                 'currency': 'USD',
                 'pricingDate': self.initial_portfolio.date.strftime('%Y-%m-%d'),
                 'useUnadjustedClosePrice': True,
-                'frequency': 'End Of Day'
-            }
+                'frequency': 'End Of Day',
+            },
         }
         if self.initial_portfolio.reference_notional:
             payload['parameters']['targetNotional'] = self.initial_portfolio.reference_notional
             payload['parameters']['weightingStrategy'] = "Weight"
 
         try:
-            price_results = GsSession.current._post('/price/positions', payload)
+            price_results = GsSession.current.sync.post('/price/positions', payload)
         except Exception as e:
             raise MqValueError(f'There was an error pricing your positions: {e}')
         if 'errorMessage' in price_results:
@@ -586,36 +593,33 @@ class PerformanceHedgeParameters:
 
         if self.initial_portfolio.reference_notional is None:
             self.initial_portfolio.reference_notional = price_results.get('actualNotional')
-        positions_as_dict = [{'assetId': p['assetId'], 'quantity': p['quantity']} for p in
-                             price_results.get('positions', [])]
+        positions_as_dict = [
+            {'assetId': p['assetId'], 'quantity': p['quantity']} for p in price_results.get('positions', [])
+        ]
 
         # Resolve any assets in the hedge universe, asset constraints, and asset exclusions
         hedge_date = self.initial_portfolio.date
-        identifiers = [identifier for identifier in self.universe]
-        if self.exclusions is not None and self.exclusions.assets is not None:
-            identifiers = identifiers + [asset for asset in self.exclusions.assets]
-        if self.constraints is not None:
-            if self.constraints.assets is not None:
-                identifiers = identifiers + [asset.constraint_name for asset in self.constraints.assets]
-        resolver = GsAssetApi.resolve_assets(identifier=identifiers,
-                                             fields=['id'],
-                                             as_of=hedge_date)
-        self.universe = [resolver.get(asset, [{'id': asset}])[0].get('id') for asset in self.universe]
+        self.universe = [resolved_identifiers.get(asset, [{'id': asset}])[0].get('id') for asset in self.universe]
+        if self.benchmarks is not None:
+            self.benchmarks = [
+                resolved_identifiers.get(asset, [{'id': asset}])[0].get('id') for asset in self.benchmarks
+            ]
         if self.exclusions is not None:
             if self.exclusions.assets is not None:
-                self.exclusions.assets = [resolver.get(asset, [{'id': asset}])[0].get('id')
-                                          for asset in self.exclusions.assets]
+                self.exclusions.assets = [
+                    resolved_identifiers.get(asset, [{'id': asset}])[0].get('id') for asset in self.exclusions.assets
+                ]
         if self.constraints is not None and self.constraints.assets is not None:
             for con in self.constraints.assets:
-                if len(resolver.get(con.constraint_name, [])) > 0:
-                    con.constraint_name = resolver.get(con.constraint_name)[0].get('id', con.constraint_name)
+                if len(resolved_identifiers.get(con.constraint_name, [])) > 0:
+                    con.constraint_name = resolved_identifiers.get(con.constraint_name)[0].get(
+                        'id', con.constraint_name
+                    )
 
         # Parse and return dictionary
         observation_start_date = self.observation_start_date or hedge_date - relativedelta(years=1)
         as_dict = {
-            'hedgeTarget': {
-                'positions': positions_as_dict
-            },
+            'hedgeTarget': {'positions': positions_as_dict},
             'universe': self.universe,
             'notional': self.initial_portfolio.reference_notional,
             'observationStartDate': observation_start_date.strftime("%Y-%m-%d"),
@@ -634,7 +638,7 @@ class PerformanceHedgeParameters:
             'marketParticipationRate': self.market_participation_rate,
             'useMachineLearning': True,
             'lassoWeight': self.lasso_weight,
-            'ridgeWeight': self.ridge_weight
+            'ridgeWeight': self.ridge_weight,
         }
 
         exclusions_as_dict = self.exclusions.to_dict() if self.exclusions else {}
@@ -657,8 +661,26 @@ class PerformanceHedgeParameters:
             as_dict['minMarketCap'] = self.min_market_cap
         if self.max_market_cap is not None:
             as_dict['maxMarketCap'] = self.max_market_cap
+        if self.benchmarks is not None and len(self.benchmarks):
+            as_dict['benchmarks'] = self.benchmarks
 
         return as_dict
+
+    def resolve_identifiers_in_payload(self, hedge_date) -> tuple:
+        """
+        The hedge payload has identifiers which need to be resolved
+        The resolved values here are used to convert back from asset Id to provided identifier for benchmark curves
+        """
+        identifiers = [identifier for identifier in self.universe]
+        if self.exclusions is not None and self.exclusions.assets is not None:
+            identifiers = identifiers + [asset for asset in self.exclusions.assets]
+        if self.benchmarks is not None:
+            identifiers = identifiers + [asset for asset in self.benchmarks]
+        if self.constraints is not None:
+            if self.constraints.assets is not None:
+                identifiers = identifiers + [asset.constraint_name for asset in self.constraints.assets]
+        resolver = GsAssetApi.resolve_assets(identifier=identifiers, fields=['id'], as_of=hedge_date)
+        return resolver
 
 
 class Hedge:
@@ -666,10 +688,7 @@ class Hedge:
     A Marquee hedge.
     """
 
-    def __init__(self,
-                 parameters,
-                 objective: HedgeObjective
-                 ):
+    def __init__(self, parameters, objective: HedgeObjective):
         self.__parameters = parameters
         self.__objective = objective
         self.__result = {}
@@ -687,18 +706,26 @@ class Hedge:
         return self.__objective
 
     @property
-    def result(self) -> Dict:
+    def result(self) -> dict:
         return self.__result
 
-    def calculate(self) -> Dict:
+    def calculate(self) -> dict:
         """
         Calculates the hedge
         :return: a dictionary with calculation results
         """
-        params = self.parameters.to_dict()
-        calculation_results = GsHedgeApi.calculate_hedge({'objective': self.objective.value,
-                                                          'parameters': params}).get('result')
+        resolved_identifiers = self.parameters.resolve_identifiers_in_payload(self.parameters.initial_portfolio.date)
+        params = self.parameters.to_dict(resolved_identifiers)
+        results = GsHedgeApi.calculate_hedge({'objective': self.objective.value, 'parameters': params})
+        if 'errorMessage' in results and 'result' not in results:
+            raise MqValueError(
+                f"Error calculating hedge: {results['errorMessage']}. Please adjust your constraints and try again."
+            )
+        calculation_results = results.get('result')
         formatted_results = self._format_hedge_calculate_results(calculation_results)
+        formatted_results = self._enhance_result_with_benchmark_curves(
+            formatted_results, calculation_results.get('benchmarks', []), resolved_identifiers
+        )
 
         self.__result = formatted_results
         return formatted_results
@@ -713,8 +740,9 @@ class Hedge:
         for row in constituents:
             formatted_row = {}
             for key in row:
-                formatted_row[key[0].capitalize() +
-                              ''.join(map(lambda x: x if x.islower() else f' {x}', key[1:]))] = row[key]
+                formatted_row[key[0].capitalize() + ''.join(map(lambda x: x if x.islower() else f' {x}', key[1:]))] = (
+                    row[key]
+                )
             formatted_constituents.append(formatted_row)
         return pd.DataFrame(formatted_constituents)
 
@@ -762,21 +790,41 @@ class Hedge:
         renamed_results = {
             'Portfolio': calculation_results.get('target'),
             'Hedge': calculation_results.get('hedge'),
-            'Hedged Portfolio': calculation_results.get('hedgedTarget')
+            'Hedged Portfolio': calculation_results.get('hedgedTarget'),
         }
 
         formatted_results = {}
         for key in renamed_results:
-            formatted_results[key] = {}
-            for inner_key in renamed_results[key]:
-                formatted_results[key][inner_key[0].capitalize() +
-                                       ''.join(map(lambda x: x if x.islower() else f' {x}',
-                                                   inner_key[1:]))] = renamed_results[key][inner_key]
+            formatted_results[key] = Hedge.format_dictionary_key_to_readable_format(renamed_results[key])
+
         return formatted_results
 
     @staticmethod
-    def find_optimal_hedge(hedge_query: dict, hyperparams: dict, metric: str) -> \
-            Union[dict, float]:
+    def _enhance_result_with_benchmark_curves(formatted_results, benchmark_results, resolver):
+        asset_id_to_provided_identifier_map = dict(
+            (x['id'], provided_identifier)
+            for provided_identifier, marquee_assets in resolver.items()
+            for x in marquee_assets
+        )
+
+        if len(benchmark_results):
+            for x in benchmark_results:
+                benchmark_asset_id = asset_id_to_provided_identifier_map[x['assetId']]
+                formatted_results[benchmark_asset_id] = Hedge.format_dictionary_key_to_readable_format(x)
+
+        return formatted_results
+
+    @staticmethod
+    def format_dictionary_key_to_readable_format(renamed_results):
+        formatted_results = {}
+        for inner_key in renamed_results:
+            formatted_results[
+                inner_key[0].capitalize() + ''.join(map(lambda x: x if x.islower() else f' {x}', inner_key[1:]))
+            ] = renamed_results[inner_key]
+        return formatted_results
+
+    @staticmethod
+    def find_optimal_hedge(hedge_query: dict, hyperparams: dict, metric: str) -> Union[dict, float]:
         """
         This function is designed to find the 'best' hedge from a list of hedges that are computed using a grid
         search over all hyperparameters passed in - where 'best' is defined by the metric argument passed in and
@@ -792,8 +840,9 @@ class Hedge:
         hedge_results = {}
         opt_map = Hedge.create_optimization_mappings()
         optimization_type = opt_map[metric]
-        _logger.info(f'We are trying to {optimization_type} {metric} and will return the optimized hedge & '
-                     f'metric value...')
+        _logger.info(
+            f'We are trying to {optimization_type} {metric} and will return the optimized hedge & metric value...'
+        )
         hyperparam_grid = [(x, y) for x in hyperparams['Concentration'] for y in hyperparams['Diversity']]
         for pair in hyperparam_grid:
             hedge_params = hedge_query['parameters']
@@ -817,12 +866,18 @@ class Hedge:
         :param none:
         :return: dict, the dictionary containing a mapping between metrics to optimize and how they should be optimized
         """
-        opt_dict = {'rSquared': 'maximize', 'correlation': 'maximize', 'holdingError': 'minimize',
-                    'trackingError': 'minimize', 'transactionCost': 'minimize', 'annualizedReturn': 'maximize'}
+        opt_dict = {
+            'rSquared': 'maximize',
+            'correlation': 'maximize',
+            'holdingError': 'minimize',
+            'trackingError': 'minimize',
+            'transactionCost': 'minimize',
+            'annualizedReturn': 'maximize',
+        }
         return opt_dict
 
     @staticmethod
-    def construct_portfolio_weights_and_asset_numbers(results: dict) -> Union[dict, List]:
+    def construct_portfolio_weights_and_asset_numbers(results: dict) -> Union[dict, list]:
         """
         Function used to retrieve the constructed portfolio from a performance hedge, sort it, then calculate the
         weights for all assets and total number of assets and return these results.
@@ -853,8 +908,9 @@ class Hedge:
         return diffs
 
     @staticmethod
-    def create_transaction_cost_data_structures(portfolio_asset_ids, portfolio_quantities, thomson_reuters_eod_data,
-                                                backtest_dates):
+    def create_transaction_cost_data_structures(
+        portfolio_asset_ids, portfolio_quantities, thomson_reuters_eod_data, backtest_dates
+    ):
         """
         Function designed to create the data structures necessary to compute transaction costs based on rebalancing a
         portfolio of assets.
@@ -869,8 +925,12 @@ class Hedge:
                                      for)
         :return: Union[list, dict], the data structures necessary for computing transaction (rebalance) costs
         """
-        thomson_reuters_asset_ids = [asset_id for asset_id in thomson_reuters_eod_data.get_data(
-            backtest_dates[-1], backtest_dates[-1], assetId=portfolio_asset_ids)['assetId']]
+        thomson_reuters_asset_ids = [
+            asset_id
+            for asset_id in thomson_reuters_eod_data.get_data(
+                backtest_dates[-1], backtest_dates[-1], assetId=portfolio_asset_ids
+            )['assetId']
+        ]
         diffs = Hedge.asset_id_diffs(portfolio_asset_ids, thomson_reuters_asset_ids)
         for diff in diffs:
             portfolio_asset_ids.remove(diff)
@@ -894,8 +954,9 @@ class Hedge:
         # Create list representing notional of each day in transaction_cost_days and map asset_ids to notional of each
         # asset on each day
         id_to_notional_map = {}
-        notionals_assets = [abs(np.asarray(id_prices_map[asset_id]) * id_quantity_map[asset_id]) for asset_id in
-                            portfolio_asset_ids]
+        notionals_assets = [
+            abs(np.asarray(id_prices_map[asset_id]) * id_quantity_map[asset_id]) for asset_id in portfolio_asset_ids
+        ]
         # Mapping asset_id to notionals of each day of that asset_id
         for idx, asset_id in enumerate(portfolio_asset_ids):
             id_to_notional_map[asset_id] = list(notionals_assets[idx])
@@ -904,8 +965,9 @@ class Hedge:
         # Create map of asset_ids to weights of total portfolio on each day
         id_to_weight_map = {}
         for idx, asset_id in enumerate(portfolio_asset_ids):
-            id_to_weight_map[asset_id] = [i / j for i, j in
-                                          zip(id_to_notional_map[portfolio_asset_ids[idx]], total_notionals_each_day)]
+            id_to_weight_map[asset_id] = [
+                i / j for i, j in zip(id_to_notional_map[portfolio_asset_ids[idx]], total_notionals_each_day)
+            ]
         return id_quantity_map, id_prices_map, id_to_notional_map, id_to_weight_map
 
     @staticmethod
@@ -975,8 +1037,5 @@ class Hedge:
 
 
 class PerformanceHedge(Hedge):
-
-    def __init__(self,
-                 parameters: PerformanceHedgeParameters = None,
-                 **kwargs):
+    def __init__(self, parameters: PerformanceHedgeParameters = None, **kwargs):
         super().__init__(parameters, HedgeObjective.Replicate_Performance)

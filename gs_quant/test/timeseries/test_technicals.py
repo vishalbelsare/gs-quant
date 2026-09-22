@@ -14,20 +14,40 @@ specific language governing permissions and limitations
 under the License.
 """
 
-import pytest
-from pandas.testing import assert_series_equal
+import datetime as dt
 
-from gs_quant.timeseries import *
+import numpy as np
+import pandas as pd
+import pytest
+from pandas.testing import assert_frame_equal, assert_series_equal
+
+import gs_quant.timeseries.technicals as technicals
+from gs_quant.errors import MqValueError
+from gs_quant.timeseries import (
+    Frequency,
+    SeasonalModel,
+    Window,
+    bollinger_bands,
+    exponential_moving_average,
+    exponential_spread_volatility,
+    exponential_volatility,
+    macd,
+    moving_average,
+    relative_strength_index,
+    seasonally_adjusted,
+    smoothed_moving_average,
+    trend,
+)
 
 
 def test_moving_average():
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
-        date(2019, 1, 5),
-        date(2019, 1, 6),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
+        dt.date(2019, 1, 5),
+        dt.date(2019, 1, 6),
     ]
 
     x = pd.Series([3.0, 2.0, 3.0, 1.0, 3.0, 6.0], index=dates)
@@ -48,15 +68,18 @@ def test_moving_average():
     expected = pd.Series([2.5, 2, 2, 4.5], index=dates[2:])
     assert_series_equal(result, expected, obj="Moving average strdate window")
 
+    result = moving_average(pd.Series(dtype=float), "2d")
+    assert result.empty
+
 
 def test_smoothed_moving_average():
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
-        date(2019, 1, 5),
-        date(2019, 1, 6),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
+        dt.date(2019, 1, 5),
+        dt.date(2019, 1, 6),
     ]
 
     x = pd.Series([3.0, 2.0, 3.0, 1.0, 3.0, 6.0], index=dates)
@@ -84,12 +107,12 @@ def test_smoothed_moving_average():
 
 def test_macd():
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
-        date(2019, 1, 5),
-        date(2019, 1, 6),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
+        dt.date(2019, 1, 5),
+        dt.date(2019, 1, 6),
     ]
 
     x = pd.Series([3.0, 2.0, 3.0, 1.0, 3.0, 6.0], index=dates)
@@ -103,12 +126,12 @@ def test_macd():
 
 def test_bollinger_bands():
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
-        date(2019, 1, 5),
-        date(2019, 1, 6),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
+        dt.date(2019, 1, 5),
+        dt.date(2019, 1, 6),
     ]
 
     x = pd.Series([3.0, 2.0, 3.0, 1.0, 3.0, 6.0], index=dates)
@@ -125,67 +148,72 @@ def test_bollinger_bands():
     assert_series_equal(high, expected_high, check_names=False, obj="Bollinger bands high")
 
     result = bollinger_bands(x, "2d")
-    print(result)
+    expected = pd.DataFrame(
+        {
+            0: [1.085786, -0.828427, -0.828427, 0.257359],
+            1: [3.914214, 4.828427, 4.828427, 8.742641],
+        },
+        index=dates[2:],
+    )
+    assert_frame_equal(result, expected)
 
 
 def test_relative_strength_index():
-    dates = [datetime.date(2020, 1, 2),
-             datetime.date(2020, 1, 3),
-             datetime.date(2020, 1, 6),
-             datetime.date(2020, 1, 7),
-             datetime.date(2020, 1, 8),
-             datetime.date(2020, 1, 9),
-             datetime.date(2020, 1, 10),
-             datetime.date(2020, 1, 13),
-             datetime.date(2020, 1, 14),
-             datetime.date(2020, 1, 15),
-             datetime.date(2020, 1, 16),
-             datetime.date(2020, 1, 17),
-             datetime.date(2020, 1, 21),
-             datetime.date(2020, 1, 22),
-             datetime.date(2020, 1, 23),
-             datetime.date(2020, 1, 24),
-             datetime.date(2020, 1, 27),
-             datetime.date(2020, 1, 28),
-             datetime.date(2020, 1, 29),
-             datetime.date(2020, 1, 30),
-             datetime.date(2020, 1, 31),
-             datetime.date(2020, 2, 3)]
+    dates = [
+        dt.date(2020, 1, 2),
+        dt.date(2020, 1, 3),
+        dt.date(2020, 1, 6),
+        dt.date(2020, 1, 7),
+        dt.date(2020, 1, 8),
+        dt.date(2020, 1, 9),
+        dt.date(2020, 1, 10),
+        dt.date(2020, 1, 13),
+        dt.date(2020, 1, 14),
+        dt.date(2020, 1, 15),
+        dt.date(2020, 1, 16),
+        dt.date(2020, 1, 17),
+        dt.date(2020, 1, 21),
+        dt.date(2020, 1, 22),
+        dt.date(2020, 1, 23),
+        dt.date(2020, 1, 24),
+        dt.date(2020, 1, 27),
+        dt.date(2020, 1, 28),
+        dt.date(2020, 1, 29),
+        dt.date(2020, 1, 30),
+        dt.date(2020, 1, 31),
+        dt.date(2020, 2, 3),
+    ]
 
-    SPX_values = [3257.8501,
-                  3234.8501,
-                  3246.28,
-                  3237.1799,
-                  3253.05,
-                  3274.7,
-                  3265.3501,
-                  3288.1299,
-                  3283.1499,
-                  3289.29,
-                  3316.8101,
-                  3329.6201,
-                  3320.79,
-                  3321.75,
-                  3325.54,
-                  3295.47,
-                  3243.6299,
-                  3276.24,
-                  3273.3999,
-                  3283.6599,
-                  3225.52,
-                  3248.9199]
+    SPX_values = [
+        3257.8501,
+        3234.8501,
+        3246.28,
+        3237.1799,
+        3253.05,
+        3274.7,
+        3265.3501,
+        3288.1299,
+        3283.1499,
+        3289.29,
+        3316.8101,
+        3329.6201,
+        3320.79,
+        3321.75,
+        3325.54,
+        3295.47,
+        3243.6299,
+        3276.24,
+        3273.3999,
+        3283.6599,
+        3225.52,
+        3248.9199,
+    ]
 
-    target_vals = [66.35899,
-                   50.99377,
-                   57.63855,
-                   56.91475,
-                   58.92162,
-                   45.88014,
-                   50.61763]
+    target_vals = [66.35899, 50.99377, 57.63855, 56.91475, 58.92162, 45.88014, 50.61763]
 
     w = 14
     SPX = pd.Series(data=SPX_values, index=dates)
-    expected = pd.Series(data=target_vals, index=dates[w + 1:])
+    expected = pd.Series(data=target_vals, index=dates[w + 1 :])
     result = relative_strength_index(SPX, w)
     assert_series_equal(result, expected, check_names=False, obj="Relative Strength Index")
 
@@ -194,27 +222,33 @@ def test_relative_strength_index():
     result = relative_strength_index(increasing_series, w)
     assert_series_equal(result, expected, check_names=False, obj="Relative Strength Index")
 
-    result = relative_strength_index(SPX, "2w")
-    print(result)
+
+def test_relative_strength_index_date_offset_window():
+    dates = [dt.date(2020, 1, day) for day in range(1, 11)]
+    increasing_series = pd.Series(np.arange(1, 11, dtype=float), index=dates)
+
+    expected = pd.Series(100.0, index=dates[4:])
+    result = relative_strength_index(increasing_series, "3d")
+
+    assert_series_equal(result, expected, check_names=False, obj="Relative Strength Index date offset window")
 
 
 def test_exponential_moving_average():
-
     def ema_by_hand(ts, alpha=0.75):
         R = ts.copy()
         R *= 0
-        R[0] = ts[0]
+        R.iloc[0] = ts.iloc[0]
         for i in range(1, len(ts)):
-            R[i] = alpha * R[i - 1] + (1 - alpha) * ts[i]
+            R.iloc[i] = alpha * R.iloc[i - 1] + (1 - alpha) * ts.iloc[i]
         return R
 
     dates = [
-        date(2019, 1, 1),
-        date(2019, 1, 2),
-        date(2019, 1, 3),
-        date(2019, 1, 4),
-        date(2019, 1, 5),
-        date(2019, 1, 6),
+        dt.date(2019, 1, 1),
+        dt.date(2019, 1, 2),
+        dt.date(2019, 1, 3),
+        dt.date(2019, 1, 4),
+        dt.date(2019, 1, 5),
+        dt.date(2019, 1, 6),
     ]
 
     x = pd.Series([3.0, 2.0, 3.0, 1.0, 3.0, 6.0], index=dates)
@@ -257,22 +291,46 @@ def test_trend():
     long_x = pd.Series(range(len(long_dates)), index=long_dates)
     res = trend(long_x)  # Should not be all NaN, make sure it's correct length
     assert len(res) == len(long_x)
-    assert np.isclose(res[int(len(res) / 2)], long_x[int(len(res) / 2)], 0.1)
-    assert res.notnull().any()
+    assert np.isclose(res.iloc[int(len(res) / 2)], long_x.iloc[int(len(res) / 2)], 0.1)
+    assert res.notna().any()
     with pytest.raises(ValueError):
         trend(long_x, SeasonalModel.MULTIPLICATIVE)  # Should not be all NaN, make sure it's correct length
     res = trend(long_x + 1, SeasonalModel.MULTIPLICATIVE)  # Should not be all NaN, make sure it's correct length
     assert len(res) == len(long_x)
-    assert np.isclose((res[int(len(res) / 2)] - 1), long_x[int(len(res) / 2)], 0.1)
-    assert res.notnull().any()
+    assert np.isclose((res.iloc[int(len(res) / 2)] - 1), long_x.iloc[int(len(res) / 2)], 0.1)
+    assert res.notna().any()
     with pytest.raises(MqValueError):
         x = pd.Series(range(10))
         trend(x)
 
 
+def test_trend_and_seasonally_adjusted_remove_quarterly_pattern():
+    dates = pd.date_range('2020-01-31', periods=24, freq='ME')
+    underlying_trend = pd.Series(np.arange(24, dtype=float) + 100, index=dates)
+
+    additive_pattern = np.array([10.0, 0.0, -10.0] * 8)
+    additive_series = underlying_trend + additive_pattern
+
+    adjusted = seasonally_adjusted(additive_series, SeasonalModel.ADDITIVE, Frequency.QUARTER)
+    extracted_trend = trend(additive_series, SeasonalModel.ADDITIVE, Frequency.QUARTER)
+
+    assert_series_equal(
+        adjusted.dropna(),
+        underlying_trend.loc[adjusted.dropna().index],
+        check_names=False,
+        obj="Seasonally adjusted additive series",
+    )
+    assert_series_equal(
+        extracted_trend.dropna(),
+        underlying_trend.loc[extracted_trend.dropna().index],
+        check_names=False,
+        obj="Trend extracted from additive series",
+    )
+
+
 def test_seasonality_adjusted():
     # Test that correctly runs with different frequencies
-    for pfreq in ['B', 'D', 'W', 'M', 'Q', 'Y']:
+    for pfreq in ['B', 'D', 'W', 'ME', 'QE', 'YE']:
         for freq in [Frequency.YEAR, Frequency.QUARTER, Frequency.MONTH, Frequency.WEEK]:
             dates = pd.date_range('2019-01-01', '2021-01-05', freq=pfreq)
             series = pd.Series(range(len(dates)), index=dates) + 1
@@ -284,6 +342,47 @@ def test_seasonality_adjusted():
     with pytest.raises(MqValueError):
         x = pd.Series(range(10))
         seasonally_adjusted(x)
+
+
+def test_freq_to_period_business_day_and_weekly_conversions():
+    business_dates = pd.bdate_range('2020-01-01', periods=5)
+    business_series = pd.Series([1, 2, 3, 4, 5], index=business_dates)
+
+    weekly_adjusted, weekly_period = technicals._freq_to_period(business_series, Frequency.WEEK)
+    monthly_adjusted, monthly_period = technicals._freq_to_period(business_series, Frequency.MONTH)
+
+    assert weekly_period == 5
+    assert weekly_adjusted.index.freqstr == 'B'
+    assert_series_equal(weekly_adjusted, business_series, check_freq=False)
+
+    expected_monthly = pd.Series(
+        [1, 2, 3, 3, 3, 4, 5],
+        index=pd.date_range('2020-01-01', periods=7, freq='D'),
+    )
+    assert monthly_period == 30
+    assert monthly_adjusted.index.freqstr == 'D'
+    assert_series_equal(monthly_adjusted.head(7), expected_monthly)
+
+
+def test_freq_to_period_incompatible_weekly_and_monthly_requests():
+    weekly_dates = pd.date_range('2020-01-05', periods=8, freq='W')
+    weekly_series = pd.Series(range(8), index=weekly_dates)
+    monthly_dates = pd.date_range('2020-01-31', periods=6, freq='ME')
+    monthly_series = pd.Series(range(1, 7), index=monthly_dates)
+
+    yearly_adjusted, yearly_period = technicals._freq_to_period(weekly_series, Frequency.YEAR)
+    quarterly_adjusted, quarterly_period = technicals._freq_to_period(monthly_series, Frequency.QUARTER)
+
+    assert yearly_period == 52
+    assert yearly_adjusted.index.freqstr == 'W-SUN'
+    assert quarterly_period == 3
+    assert quarterly_adjusted.index.freqstr == 'ME'
+
+    with pytest.raises(MqValueError, match='Frequency week not compatible with series with frequency'):
+        technicals._freq_to_period(weekly_series, Frequency.WEEK)
+
+    with pytest.raises(MqValueError, match='Frequency month not compatible with series with frequency'):
+        technicals._freq_to_period(monthly_series, Frequency.MONTH)
 
 
 if __name__ == "__main__":

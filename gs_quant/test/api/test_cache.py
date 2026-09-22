@@ -14,20 +14,21 @@ specific language governing permissions and limitations
 under the License.
 """
 
+import datetime as dt
 from unittest import mock
 
-import datetime as dt
 import pandas as pd
 
+import gs_quant.risk as risk
 from gs_quant.api.gs.risk import GsRiskApi
 from gs_quant.instrument import IRSwap, IRSwaption
 from gs_quant.markets import HistoricalPricingContext, PricingCache, PricingContext
-import gs_quant.risk as risk
 from gs_quant.session import Environment, GsSession
 
 
 def set_session():
     from gs_quant.session import OAuth2Session
+
     OAuth2Session.init = mock.MagicMock(return_value=None)
     GsSession.use(Environment.PROD, 'client_id', 'secret')
     PricingCache.clear()
@@ -56,6 +57,7 @@ def test_cache_addition_removal():
     del mocker
 
     import gc
+
     gc.collect()
 
     p2 = IRSwap('Pay', '10y', 'DKK')
@@ -121,9 +123,7 @@ def test_cache_subset(mocker):
 
     ir_swap = IRSwap('Pay', '10y', 'DKK')
 
-    values = [
-        {'$type': 'Risk', 'val': 0.01}
-    ]
+    values = [{'$type': 'Risk', 'val': 0.01}]
     mocker.return_value = [[[values]], [[values]]]
 
     dates = (dt.date(2019, 10, 7), dt.date(2019, 10, 8))
@@ -132,7 +132,7 @@ def test_cache_subset(mocker):
     price_f.result()
 
     for date in dates:
-        with PricingContext(pricing_date=date) as pc:
+        with PricingContext(pricing_date=date, use_historical_diddles_only=True) as pc:
             risk_key = pc._PricingContext__risk_key(risk.Price, ir_swap.provider)
         cached_scalar = PricingCache.get(risk_key, ir_swap)
         assert cached_scalar
@@ -149,8 +149,8 @@ def test_cache_subset(mocker):
             'asset': [0.01, 0.015],
             'points': [
                 {'type': 'IR', 'asset': 'USD', 'class_': 'Swap', 'point': '1y'},
-                {'type': 'IR', 'asset': 'USD', 'class_': 'Swap', 'point': '2y'}
-            ]
+                {'type': 'IR', 'asset': 'USD', 'class_': 'Swap', 'point': '2y'},
+            ],
         }
     ]
 
@@ -172,28 +172,30 @@ def test_cache_subset(mocker):
 def test_multiple_measures(mocker):
     day = [
         [
-            [{
-                '$type': 'RiskVector',
-                'asset': [0.01, 0.015],
-                'points': [
-                    {'type': 'IR Vol', 'asset': 'USD-LIBOR-BBA', 'class_': 'Swap', 'point': '1y'},
-                    {'type': 'IR Vol', 'asset': 'USD-LIBOR-BBA', 'class_': 'Swap', 'point': '2y'}
-                ]
-            }]
+            [
+                {
+                    '$type': 'RiskVector',
+                    'asset': [0.01, 0.015],
+                    'points': [
+                        {'type': 'IR Vol', 'asset': 'USD-LIBOR-BBA', 'class_': 'Swap', 'point': '1y'},
+                        {'type': 'IR Vol', 'asset': 'USD-LIBOR-BBA', 'class_': 'Swap', 'point': '2y'},
+                    ],
+                }
+            ]
         ],
         [
-            [{
-                '$type': 'RiskVector',
-                'asset': [0.01, 0.015],
-                'points': [
-                    {'type': 'IR', 'asset': 'USD', 'class_': 'Swap', 'point': '1y'},
-                    {'type': 'IR', 'asset': 'USD', 'class_': 'Swap', 'point': '2y'}
-                ]
-            }],
+            [
+                {
+                    '$type': 'RiskVector',
+                    'asset': [0.01, 0.015],
+                    'points': [
+                        {'type': 'IR', 'asset': 'USD', 'class_': 'Swap', 'point': '1y'},
+                        {'type': 'IR', 'asset': 'USD', 'class_': 'Swap', 'point': '2y'},
+                    ],
+                }
+            ],
         ],
-        [
-            [{'$type': 'Risk', 'val': 0.01}]
-        ]
+        [[{'$type': 'Risk', 'val': 0.01}]],
     ]
 
     mocker.return_value = [day, day, day]
@@ -210,12 +212,12 @@ def test_multiple_measures(mocker):
 
     # make sure all the risk measures got cached correctly
     for date in dates:
-        with PricingContext(pricing_date=date) as pc:
+        with PricingContext(pricing_date=date, use_historical_diddles_only=True) as pc:
             for risk_measure in (risk.Price, risk.IRDelta, risk.IRVega):
                 val = PricingCache.get(pc._PricingContext__risk_key(risk_measure, ir_swaption.provider), ir_swaption)
                 assert val is not None
 
-    with PricingContext(pricing_date=dt.date(2019, 10, 11)) as pc:
+    with PricingContext(pricing_date=dt.date(2019, 10, 11), use_historical_diddles_only=True) as pc:
         for risk_measure in (risk.Price, risk.IRDelta, risk.IRVega):
             val = PricingCache.get(pc._PricingContext__risk_key(risk_measure, ir_swaption.provider), ir_swaption)
             assert val is None

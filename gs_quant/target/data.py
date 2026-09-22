@@ -27,7 +27,12 @@ class DataSetType(EnumBase, Enum):
     
     """Type of the dataset"""
 
-    PlotTool_Pro = 'PlotTool Pro'    
+    Alloy = 'Alloy'
+    Snowflake = 'Snowflake'
+    PDL = 'PDL'
+    LHSnowflake = 'LHSnowflake'
+    NativeSnowflake = 'NativeSnowflake'
+    VendorSnowflake = 'VendorSnowflake'    
 
 
 class DelayExclusionType(EnumBase, Enum):    
@@ -67,6 +72,7 @@ class MeasureEntityType(EnumBase, Enum):
     """Entity type associated with a measure."""
 
     ASSET = 'ASSET'
+    SEC_MASTER_ASSET = 'SEC_MASTER_ASSET'
     BACKTEST = 'BACKTEST'
     KPI = 'KPI'
     COUNTRY = 'COUNTRY'
@@ -84,8 +90,25 @@ class AdvancedFilter(Base):
     column: str = field(default=None, metadata=field_metadata)
     operator: str = field(default=None, metadata=field_metadata)
     value: Optional[float] = field(default=None, metadata=field_metadata)
-    values: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    values: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     format_: Optional[str] = field(default=None, metadata=config(field_name='format', exclude=exclude_none))
+    name: Optional[str] = field(default=None, metadata=name_metadata)
+
+
+@handle_camel_case_args
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(unsafe_hash=True, repr=False)
+class AlloyService(Base):
+    base_url: Optional[str] = field(default=None, metadata=field_metadata)
+    name: Optional[str] = field(default=None, metadata=name_metadata)
+
+
+@handle_camel_case_args
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(unsafe_hash=True, repr=False)
+class ColumnEnumPair(Base):
+    column: Optional[str] = field(default=None, metadata=field_metadata)
+    enum_key: Optional[str] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -96,7 +119,7 @@ class DataSetCondition(Base):
     column: str = field(default=None, metadata=field_metadata)
     operator: str = field(default=None, metadata=field_metadata)
     value: Optional[float] = field(default=None, metadata=field_metadata)
-    values: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    values: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -123,7 +146,7 @@ class DataSetFieldEntityAttributes(Base):
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
 class DataSetFieldEntityClassifications(Base):
-    groups: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    groups: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     data_set_id: Optional[str] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
@@ -134,6 +157,15 @@ class DataSetFieldEntityClassifications(Base):
 class DataSetFieldEntityNumberParameters(Base):
     maximum: Optional[int] = field(default=None, metadata=field_metadata)
     minimum: Optional[int] = field(default=None, metadata=field_metadata)
+    name: Optional[str] = field(default=None, metadata=name_metadata)
+
+
+@handle_camel_case_args
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(unsafe_hash=True, repr=False)
+class DataSetTrial(Base):
+    bundle: Optional[str] = field(default=None, metadata=field_metadata)
+    type_: Optional[str] = field(init=False, default='display', metadata=config(field_name='type', exclude=exclude_none))
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -155,7 +187,7 @@ class ErrorInfo(Base):
     status_code: int = field(default=None, metadata=field_metadata)
     reason_phrase: str = field(default=None, metadata=field_metadata)
     title: Optional[str] = field(default=None, metadata=field_metadata)
-    messages: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    messages: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -174,7 +206,7 @@ class FieldLinkSelector(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class MDAPI(Base):
     type_: str = field(default=None, metadata=config(field_name='type', exclude=exclude_none))
-    quoting_styles: Tuple[DictBase, ...] = field(default=None, metadata=field_metadata)
+    quoting_styles: tuple[DictBase, ...] = field(default=None, metadata=field_metadata)
     class_: Optional[str] = field(default=None, metadata=config(field_name='class', exclude=exclude_none))
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
@@ -195,17 +227,19 @@ class MarketDataFilteredField(Base):
     default_value: Optional[str] = field(default=None, metadata=field_metadata)
     default_numerical_value: Optional[float] = field(default=None, metadata=field_metadata)
     default_boolean_value: Optional[bool] = field(default=None, metadata=field_metadata)
-    numerical_values: Optional[Tuple[float, ...]] = field(default=None, metadata=field_metadata)
-    values: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    numerical_values: Optional[tuple[float, ...]] = field(default=None, metadata=field_metadata)
+    values: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     multi_measure: Optional[bool] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
-class MeasureBacktest(DictBase):
+@dataclass
+class MeasureBacktest(Base):
     pass
 
 
-class MeasureKpi(DictBase):
+@dataclass
+class MeasureKpi(Base):
     pass
 
 
@@ -228,7 +262,11 @@ class ParserEntity(Base):
     trades: Optional[bool] = field(default=None, metadata=field_metadata)
     only_mqtick_fields: Optional[bool] = field(default=None, metadata=field_metadata)
     include_trd_flg_proc: Optional[bool] = field(default=None, metadata=field_metadata)
-    keep_raw_fields: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    keep_raw_fields: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    include_mmt: Optional[bool] = field(default=None, metadata=field_metadata)
+    include_currency: Optional[bool] = field(default=None, metadata=field_metadata)
+    separate_quote_exchange_codes: Optional[bool] = field(default=None, metadata=field_metadata)
+    trade_ids: Optional[bool] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -256,7 +294,26 @@ class RemapFieldPair(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class ResponseInfo(Base):
     request_id: Optional[str] = field(default=None, metadata=field_metadata)
-    messages: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    messages: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    name: Optional[str] = field(default=None, metadata=name_metadata)
+
+
+@handle_camel_case_args
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(unsafe_hash=True, repr=False)
+class SnowflakeConfig(Base):
+    db: Optional[str] = field(default=None, metadata=field_metadata)
+    drg_id: Optional[str] = field(default=None, metadata=field_metadata)
+    id_column: Optional[str] = field(default=None, metadata=config(field_name='IdColumn', exclude=exclude_none))
+    date_time_column: Optional[str] = field(default=None, metadata=field_metadata)
+    name: Optional[str] = field(default=None, metadata=name_metadata)
+
+
+@handle_camel_case_args
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(unsafe_hash=True, repr=False)
+class StoredEntity(Base):
+    stored_processor_name: Optional[str] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -272,9 +329,26 @@ class SymbolFilterLink(Base):
 @handle_camel_case_args
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
+class AlloyConfig(Base):
+    data_service: Optional[AlloyService] = field(default=None, metadata=field_metadata)
+    coverage_service: Optional[AlloyService] = field(default=None, metadata=field_metadata)
+    name: Optional[str] = field(default=None, metadata=name_metadata)
+
+@handle_camel_case_args
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(unsafe_hash=True, repr=False)
+class DBConfig(Base):
+    db: Optional[str] = field(default=None, metadata=field_metadata)
+    drg_id: Optional[str] = field(default=None, metadata=field_metadata)
+    id_column: Optional[str] = field(default=None, metadata=config(field_name='IdColumn', exclude=exclude_none))
+    date_time_column: Optional[str] = field(default=None, metadata=field_metadata)
+
+@handle_camel_case_args
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(unsafe_hash=True, repr=False)
 class DataFilter(Base):
     field_: str = field(default=None, metadata=config(field_name='field', exclude=exclude_none))
-    values: Tuple[str, ...] = field(default=None, metadata=field_metadata)
+    values: tuple[str, ...] = field(default=None, metadata=field_metadata)
     column: Optional[str] = field(default=None, metadata=field_metadata)
     where: Optional[DataSetCondition] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
@@ -284,11 +358,11 @@ class DataFilter(Base):
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
 class DataSetCoverageProperties(Base):
-    prefixes: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    prefixes: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     prefix_type: Optional[str] = field(default=None, metadata=field_metadata)
-    asset_classes: Optional[Tuple[AssetClass, ...]] = field(default=None, metadata=field_metadata)
-    asset_types: Optional[Tuple[AssetType, ...]] = field(default=None, metadata=field_metadata)
-    entity_types: Optional[Tuple[MeasureEntityType, ...]] = field(default=None, metadata=field_metadata)
+    asset_classes: Optional[tuple[AssetClass, ...]] = field(default=None, metadata=field_metadata)
+    asset_types: Optional[tuple[AssetType, ...]] = field(default=None, metadata=field_metadata)
+    entity_types: Optional[tuple[MeasureEntityType, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -298,7 +372,7 @@ class DataSetCoverageProperties(Base):
 class DataSetDelay(Base):
     until_seconds: float = field(default=None, metadata=field_metadata)
     at_time_zone: str = field(default=None, metadata=field_metadata)
-    when: Optional[Tuple[DelayExclusionType, ...]] = field(default=None, metadata=field_metadata)
+    when: Optional[tuple[DelayExclusionType, ...]] = field(default=None, metadata=field_metadata)
     history_up_to_seconds: Optional[float] = field(default=None, metadata=field_metadata)
     history_up_to_time: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
     history_up_to_months: Optional[float] = field(default=None, metadata=field_metadata)
@@ -309,9 +383,9 @@ class DataSetDelay(Base):
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
 class DataSetFieldEntityStringParameters(Base):
-    enum: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    enum: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     format_: Optional[FieldFormat] = field(default=None, metadata=config(field_name='format', exclude=exclude_none))
-    pattern: Optional[str] = field(default='^[\w ]{1,256}$', metadata=field_metadata)
+    pattern: Optional[str] = field(default=r'^[\w ]{1,256}$', metadata=field_metadata)
     max_length: Optional[int] = field(default=None, metadata=field_metadata)
     min_length: Optional[int] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
@@ -320,52 +394,14 @@ class DataSetFieldEntityStringParameters(Base):
 @handle_camel_case_args
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
-class DataSetParameters(Base):
-    frequency: str = field(default=None, metadata=field_metadata)
-    category: Optional[str] = field(default=None, metadata=field_metadata)
-    sub_category: Optional[str] = field(default=None, metadata=field_metadata)
-    methodology: Optional[str] = field(default=None, metadata=field_metadata)
-    coverage: Optional[str] = field(default=None, metadata=field_metadata)
-    coverages: Optional[Tuple[AssetType, ...]] = field(default=None, metadata=field_metadata)
-    notes: Optional[str] = field(default=None, metadata=field_metadata)
-    history: Optional[str] = field(default=None, metadata=field_metadata)
-    sample_start: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
-    sample_end: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
-    published_date: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
-    history_date: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
-    asset_class: Optional[AssetClass] = field(default=None, metadata=field_metadata)
-    owner_ids: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    support_ids: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    support_distribution_list: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    apply_market_data_entitlements: Optional[bool] = field(default=None, metadata=field_metadata)
-    upload_data_policy: Optional[str] = field(default=None, metadata=field_metadata)
-    logical_db: Optional[str] = field(default=None, metadata=field_metadata)
-    symbol_strategy: Optional[str] = field(default=None, metadata=field_metadata)
-    underlying_data_set_id: Optional[str] = field(default=None, metadata=field_metadata)
-    immutable: Optional[bool] = field(default=None, metadata=field_metadata)
-    include_in_catalog: Optional[bool] = field(default=False, metadata=field_metadata)
-    coverage_enabled: Optional[bool] = field(default=True, metadata=field_metadata)
-    use_created_time_for_upload: Optional[bool] = field(default=None, metadata=field_metadata)
-    apply_entity_entitlements: Optional[bool] = field(default=None, metadata=field_metadata)
-    development_status: Optional[DevelopmentStatus] = field(default=None, metadata=field_metadata)
-    internal_owned: Optional[bool] = field(default=None, metadata=field_metadata)
-    cr_limit_read: Optional[int] = field(default=None, metadata=field_metadata)
-    cr_limit_write: Optional[int] = field(default=None, metadata=field_metadata)
-    name: Optional[str] = field(default=None, metadata=name_metadata)
-
-
-@handle_camel_case_args
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(unsafe_hash=True, repr=False)
 class DataSetTransforms(Base):
-    redact_columns: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    round_columns: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    remap_fields: Optional[Tuple[RemapFieldPair, ...]] = field(default=None, metadata=field_metadata)
+    redact_columns: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    round_columns: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    remap_fields: Optional[tuple[RemapFieldPair, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
-class FieldFilterMapDataQuery(DictBase):
-    pass
+FieldFilterMapDataQuery = dict
 
 
 @handle_camel_case_args
@@ -374,7 +410,7 @@ class FieldFilterMapDataQuery(DictBase):
 class FieldLink(Base):
     entity_identifier: Optional[str] = field(default=None, metadata=field_metadata)
     prefix: Optional[str] = field(default=None, metadata=field_metadata)
-    additional_entity_fields: Optional[Tuple[FieldLinkSelector, ...]] = field(default=None, metadata=field_metadata)
+    additional_entity_fields: Optional[tuple[FieldLinkSelector, ...]] = field(default=None, metadata=field_metadata)
     entity_type: Optional[str] = field(init=False, default='Asset', metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
@@ -388,13 +424,13 @@ class MarketDataMapping(Base):
     description: Optional[str] = field(default=None, metadata=field_metadata)
     scale: Optional[float] = field(default=None, metadata=field_metadata)
     frequency: Optional[MarketDataFrequency] = field(default=None, metadata=field_metadata)
-    measures: Optional[Tuple[MarketDataMeasure, ...]] = field(default=None, metadata=field_metadata)
+    measures: Optional[tuple[MarketDataMeasure, ...]] = field(default=None, metadata=field_metadata)
     data_set: Optional[str] = field(default=None, metadata=field_metadata)
     vendor: Optional[MarketDataVendor] = field(default=None, metadata=field_metadata)
-    fields: Optional[Tuple[MarketDataField, ...]] = field(default=None, metadata=field_metadata)
+    fields: Optional[tuple[MarketDataField, ...]] = field(default=None, metadata=field_metadata)
     rank: Optional[float] = field(default=None, metadata=field_metadata)
-    filtered_fields: Optional[Tuple[MarketDataFilteredField, ...]] = field(default=None, metadata=field_metadata)
-    asset_types: Optional[Tuple[AssetType, ...]] = field(default=None, metadata=field_metadata)
+    filtered_fields: Optional[tuple[MarketDataFilteredField, ...]] = field(default=None, metadata=field_metadata)
+    asset_types: Optional[tuple[AssetType, ...]] = field(default=None, metadata=field_metadata)
     entity_type: Optional[MeasureEntityType] = field(default=None, metadata=field_metadata)
     backtest_entity: Optional[MeasureBacktest] = field(default=None, metadata=field_metadata)
     kpi_entity: Optional[MeasureKpi] = field(default=None, metadata=field_metadata)
@@ -406,12 +442,14 @@ class MarketDataMapping(Base):
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
 class ProcessorEntity(Base):
-    filters: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    parsers: Optional[Tuple[ParserEntity, ...]] = field(default=None, metadata=field_metadata)
-    deduplicate: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    enum_type: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    filters: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    parsers: Optional[tuple[ParserEntity, ...]] = field(default=None, metadata=field_metadata)
+    deduplicate: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    enum_type: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    enums: Optional[tuple[ColumnEnumPair, ...]] = field(default=None, metadata=field_metadata)
     fill_fwd: Optional[str] = field(default=None, metadata=field_metadata)
-    additional_processors: Optional[Tuple[QueryProcessor, ...]] = field(default=None, metadata=field_metadata)
+    stored: Optional[tuple[StoredEntity, ...]] = field(default=None, metadata=field_metadata)
+    additional_processors: Optional[tuple[QueryProcessor, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -430,7 +468,7 @@ class SymbolFilterDimension(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class ComplexFilter(Base):
     operator: str = field(default=None, metadata=field_metadata)
-    simple_filters: Tuple[DataFilter, ...] = field(default=None, metadata=field_metadata)
+    simple_filters: tuple[DataFilter, ...] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -439,7 +477,7 @@ class ComplexFilter(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class DataGroup(Base):
     context: Optional[FieldValueMap] = field(default=None, metadata=field_metadata)
-    data: Optional[Tuple[FieldValueMap, ...]] = field(default=None, metadata=field_metadata)
+    data: Optional[tuple[FieldValueMap, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -460,21 +498,22 @@ class DataQuery(Base):
     end_time: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
     relative_start_date: Optional[str] = field(default=None, metadata=field_metadata)
     relative_end_date: Optional[str] = field(default=None, metadata=field_metadata)
+    adjust_as_of: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
     as_of_time: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
     id_as_of_date: Optional[datetime.date] = field(default=None, metadata=field_metadata)
     use_temporal_x_ref: Optional[bool] = field(default=False, metadata=field_metadata)
     restrict_secondary_identifier: Optional[bool] = field(default=False, metadata=field_metadata)
     since: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
-    dates: Optional[Tuple[datetime.date, ...]] = field(default=None, metadata=field_metadata)
-    times: Optional[Tuple[datetime.datetime, ...]] = field(default=None, metadata=field_metadata)
+    dates: Optional[tuple[datetime.date, ...]] = field(default=None, metadata=field_metadata)
+    times: Optional[tuple[datetime.datetime, ...]] = field(default=None, metadata=field_metadata)
     delay: Optional[int] = field(default=None, metadata=field_metadata)
     intervals: Optional[int] = field(default=None, metadata=field_metadata)
     samples: Optional[int] = field(default=None, metadata=field_metadata)
     limit: Optional[int] = field(default=None, metadata=field_metadata)
     polling_interval: Optional[int] = field(default=None, metadata=field_metadata)
+    group_by: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     grouped: Optional[bool] = field(default=None, metadata=field_metadata)
-    group_by: Optional[bool] = field(default=None, metadata=field_metadata)
-    fields: Optional[Tuple[Union[DictBase, str], ...]] = field(default=None, metadata=field_metadata)
+    fields: Optional[tuple[Union[DictBase, str], ...]] = field(default=None, metadata=field_metadata)
     restrict_fields: Optional[bool] = field(default=False, metadata=field_metadata)
     entity_filter: Optional[FieldFilterMapDataQuery] = field(default=None, metadata=field_metadata)
     interval: Optional[str] = field(default=None, metadata=field_metadata)
@@ -486,43 +525,17 @@ class DataQuery(Base):
     use_project_processor: Optional[bool] = field(default=False, metadata=field_metadata)
     snapshot: Optional[bool] = field(default=False, metadata=field_metadata)
     search_until: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
-    markout: Optional[Tuple[float, ...]] = field(default=None, metadata=field_metadata)
+    markout: Optional[tuple[float, ...]] = field(default=None, metadata=field_metadata)
     offset_to_exchange_open: Optional[str] = field(default=None, metadata=field_metadata)
     offset_to_exchange_close: Optional[str] = field(default=None, metadata=field_metadata)
     multi_trading_session: Optional[bool] = field(default=None, metadata=field_metadata)
     multi_session: Optional[bool] = field(default=None, metadata=field_metadata)
     quote_consolidation: Optional[bool] = field(default=None, metadata=field_metadata)
+    consolidation: Optional[bool] = field(default=None, metadata=field_metadata)
+    primary: Optional[bool] = field(default=None, metadata=field_metadata)
     time_index: Optional[str] = field(default=None, metadata=field_metadata)
+    empty_intervals: Optional[bool] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
-    adjust_as_of: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
-
-
-@handle_camel_case_args
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(unsafe_hash=True, repr=False)
-class DataSetCatalogEntry(Base):
-    id_: str = field(default=None, metadata=config(field_name='id', exclude=exclude_none))
-    name: str = field(default=None, metadata=field_metadata)
-    vendor: str = field(default=None, metadata=field_metadata)
-    fields: DictBase = field(default=None, metadata=field_metadata)
-    description: Optional[str] = field(default=None, metadata=field_metadata)
-    short_description: Optional[str] = field(default=None, metadata=field_metadata)
-    data_product: Optional[str] = field(default=None, metadata=field_metadata)
-    terms: Optional[str] = field(default=None, metadata=field_metadata)
-    internal_only: Optional[bool] = field(default=None, metadata=field_metadata)
-    actions: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    default_start_seconds: Optional[float] = field(default=None, metadata=field_metadata)
-    identifier_mapper_name: Optional[str] = field(default=None, metadata=field_metadata)
-    identifier_updater_name: Optional[str] = field(default=None, metadata=field_metadata)
-    default_delay_minutes: Optional[float] = field(default=None, metadata=field_metadata)
-    apply_market_data_entitlements: Optional[bool] = field(default=None, metadata=field_metadata)
-    sample: Optional[Tuple[FieldValueMap, ...]] = field(default=None, metadata=field_metadata)
-    parameters: Optional[DataSetParameters] = field(default=None, metadata=field_metadata)
-    tags: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    created_time: Optional[str] = field(default=None, metadata=field_metadata)
-    last_updated_time: Optional[str] = field(default=None, metadata=field_metadata)
-    start_date: Optional[datetime.date] = field(default=None, metadata=field_metadata)
-    mdapi: Optional[MDAPI] = field(default=None, metadata=field_metadata)
 
 
 @handle_camel_case_args
@@ -536,10 +549,54 @@ class DataSetFieldEntity(Base):
     classifications: Optional[DataSetFieldEntityClassifications] = field(default=None, metadata=field_metadata)
     unique: Optional[bool] = field(default=False, metadata=field_metadata)
     field_java_type: Optional[str] = field(default=None, metadata=field_metadata)
-    parameters: Optional[DictBase] = field(default=None, metadata=field_metadata)
+    parameters: Optional[Union[DataSetFieldEntityNumberParameters, DataSetFieldEntityStringParameters]] = field(default=None, metadata=field_metadata)
     entitlements: Optional[Entitlements] = field(default=None, metadata=field_metadata)
     metadata: Optional[EntityMetadata] = field(default=None, metadata=field_metadata)
     attributes: Optional[DataSetFieldEntityAttributes] = field(default=None, metadata=field_metadata)
+
+
+@handle_camel_case_args
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(unsafe_hash=True, repr=False)
+class DataSetParameters(Base):
+    frequency: str = field(default=None, metadata=field_metadata)
+    category: Optional[str] = field(default=None, metadata=field_metadata)
+    sub_category: Optional[str] = field(default=None, metadata=field_metadata)
+    methodology: Optional[str] = field(default=None, metadata=field_metadata)
+    coverage: Optional[str] = field(default=None, metadata=field_metadata)
+    coverages: Optional[tuple[AssetType, ...]] = field(default=None, metadata=field_metadata)
+    notes: Optional[str] = field(default=None, metadata=field_metadata)
+    history: Optional[str] = field(default=None, metadata=field_metadata)
+    sample_start: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
+    sample_end: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
+    published_date: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
+    history_date: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
+    asset_class: Optional[AssetClass] = field(default=None, metadata=field_metadata)
+    owner_ids: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    support_ids: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    support_distribution_list: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    apply_market_data_entitlements: Optional[bool] = field(default=None, metadata=field_metadata)
+    upload_data_policy: Optional[str] = field(default=None, metadata=field_metadata)
+    logical_db: Optional[str] = field(default=None, metadata=field_metadata)
+    sla: Optional[str] = field(default=None, metadata=field_metadata)
+    snowflake_db: Optional[str] = field(default=None, metadata=field_metadata)
+    symbol_strategy: Optional[str] = field(default=None, metadata=field_metadata)
+    sub_symbol_strategy: Optional[str] = field(default=None, metadata=field_metadata)
+    trials: Optional[tuple[DataSetTrial, ...]] = field(default=None, metadata=field_metadata)
+    underlying_data_set_id: Optional[str] = field(default=None, metadata=field_metadata)
+    immutable: Optional[bool] = field(default=None, metadata=field_metadata)
+    include_in_catalog: Optional[bool] = field(default=False, metadata=field_metadata)
+    coverage_enabled: Optional[bool] = field(default=True, metadata=field_metadata)
+    use_created_time_for_upload: Optional[bool] = field(default=None, metadata=field_metadata)
+    apply_entity_entitlements: Optional[bool] = field(default=None, metadata=field_metadata)
+    development_status: Optional[DevelopmentStatus] = field(default=None, metadata=field_metadata)
+    internal_owned: Optional[bool] = field(default=None, metadata=field_metadata)
+    cr_limit_read: Optional[int] = field(default=None, metadata=field_metadata)
+    cr_limit_write: Optional[int] = field(default=None, metadata=field_metadata)
+    alloy_config: Optional[AlloyConfig] = field(default=None, metadata=field_metadata)
+    external_distribution: Optional[bool] = field(default=None, metadata=field_metadata)
+    snowflake_config: Optional[SnowflakeConfig] = field(default=None, metadata=field_metadata)
+    name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
 @handle_camel_case_args
@@ -568,7 +625,8 @@ class FieldColumnPair(Base):
     column: Optional[str] = field(default=None, metadata=field_metadata)
     field_description: Optional[str] = field(default=None, metadata=field_metadata)
     link: Optional[FieldLink] = field(default=None, metadata=field_metadata)
-    aliases: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    aliases: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    display_alias: Optional[str] = field(default=None, metadata=field_metadata)
     resolvable: Optional[bool] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
@@ -581,7 +639,7 @@ class HistoryFilter(Base):
     absolute_end: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
     relative_start_seconds: Optional[float] = field(default=None, metadata=field_metadata)
     relative_end_seconds: Optional[float] = field(default=None, metadata=field_metadata)
-    delay: Optional[DictBase] = field(default=None, metadata=field_metadata)
+    delay: Optional[Union[DataSetDelay, tuple[DataSetDelay, ...]]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -597,25 +655,53 @@ class DataQueryResponse(Base):
     data_set_id: Optional[str] = field(default=None, metadata=field_metadata)
     entity_type: Optional[MeasureEntityType] = field(default=None, metadata=field_metadata)
     delay: Optional[int] = field(default=None, metadata=field_metadata)
-    data: Optional[Tuple[FieldValueMap, ...]] = field(default=None, metadata=field_metadata)
-    groups: Optional[Tuple[DataGroup, ...]] = field(default=None, metadata=field_metadata)
+    data: Optional[tuple[FieldValueMap, ...]] = field(default=None, metadata=field_metadata)
+    groups: Optional[tuple[DataGroup, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
 @handle_camel_case_args
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
+class DataSetCatalogEntry(Base):
+    id_: str = field(default=None, metadata=config(field_name='id', exclude=exclude_none))
+    name: str = field(default=None, metadata=field_metadata)
+    vendor: str = field(default=None, metadata=field_metadata)
+    fields: DictBase = field(default=None, metadata=field_metadata)
+    description: Optional[str] = field(default=None, metadata=field_metadata)
+    short_description: Optional[str] = field(default=None, metadata=field_metadata)
+    data_product: Optional[str] = field(default=None, metadata=field_metadata)
+    terms: Optional[str] = field(default=None, metadata=field_metadata)
+    internal_only: Optional[bool] = field(default=None, metadata=field_metadata)
+    actions: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    default_start_seconds: Optional[float] = field(default=None, metadata=field_metadata)
+    identifier_mapper_name: Optional[str] = field(default=None, metadata=field_metadata)
+    identifier_updater_name: Optional[str] = field(default=None, metadata=field_metadata)
+    default_delay_minutes: Optional[float] = field(default=None, metadata=field_metadata)
+    apply_market_data_entitlements: Optional[bool] = field(default=None, metadata=field_metadata)
+    sample: Optional[tuple[FieldValueMap, ...]] = field(default=None, metadata=field_metadata)
+    parameters: Optional[DataSetParameters] = field(default=None, metadata=field_metadata)
+    tags: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    created_time: Optional[str] = field(default=None, metadata=field_metadata)
+    last_updated_time: Optional[str] = field(default=None, metadata=field_metadata)
+    start_date: Optional[datetime.date] = field(default=None, metadata=field_metadata)
+    mdapi: Optional[MDAPI] = field(default=None, metadata=field_metadata)
+
+
+@handle_camel_case_args
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(unsafe_hash=True, repr=False)
 class DataSetDimensions(Base):
-    symbol_dimensions: Tuple[str, ...] = field(default=None, metadata=field_metadata)
-    time_field: Optional[str] = field(default=None, metadata=field_metadata)
+    time_field: str = field(default=None, metadata=field_metadata)
+    symbol_dimensions: tuple[str, ...] = field(default=None, metadata=field_metadata)
     transaction_time_field: Optional[str] = field(default=None, metadata=field_metadata)
-    symbol_dimension_properties: Optional[Tuple[FieldColumnPair, ...]] = field(default=None, metadata=field_metadata)
-    non_symbol_dimensions: Optional[Tuple[FieldColumnPair, ...]] = field(default=None, metadata=field_metadata)
+    symbol_dimension_properties: Optional[tuple[FieldColumnPair, ...]] = field(default=None, metadata=field_metadata)
+    non_symbol_dimensions: Optional[tuple[FieldColumnPair, ...]] = field(default=None, metadata=field_metadata)
     symbol_dimension_link: Optional[FieldLink] = field(default=None, metadata=field_metadata)
-    linked_dimensions: Optional[Tuple[FieldLinkSelector, ...]] = field(default=None, metadata=field_metadata)
-    symbol_filter_dimensions: Optional[Tuple[SymbolFilterDimension, ...]] = field(default=None, metadata=field_metadata)
-    key_dimensions: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    measures: Optional[Tuple[FieldColumnPair, ...]] = field(default=None, metadata=field_metadata)
+    linked_dimensions: Optional[tuple[FieldLinkSelector, ...]] = field(default=None, metadata=field_metadata)
+    symbol_filter_dimensions: Optional[tuple[SymbolFilterDimension, ...]] = field(default=None, metadata=field_metadata)
+    key_dimensions: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    measures: Optional[tuple[FieldColumnPair, ...]] = field(default=None, metadata=field_metadata)
     entity_dimension: Optional[str] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
@@ -624,7 +710,7 @@ class DataSetDimensions(Base):
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
 class DataSetFieldEntityBulkRequest(Base):
-    fields: Tuple[DataSetFieldEntity, ...] = field(default=None, metadata=field_metadata)
+    fields: tuple[DataSetFieldEntity, ...] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -633,8 +719,8 @@ class DataSetFieldEntityBulkRequest(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class EntityFilter(Base):
     operator: Optional[str] = field(default=None, metadata=field_metadata)
-    simple_filters: Optional[Tuple[DataFilter, ...]] = field(default=None, metadata=field_metadata)
-    complex_filters: Optional[Tuple[ComplexFilter, ...]] = field(default=None, metadata=field_metadata)
+    simple_filters: Optional[tuple[DataFilter, ...]] = field(default=None, metadata=field_metadata)
+    complex_filters: Optional[tuple[ComplexFilter, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -643,8 +729,8 @@ class EntityFilter(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class DataSetFilters(Base):
     entity_filter: Optional[EntityFilter] = field(default=None, metadata=field_metadata)
-    row_filters: Optional[Tuple[DataFilter, ...]] = field(default=None, metadata=field_metadata)
-    advanced_filters: Optional[Tuple[AdvancedFilter, ...]] = field(default=None, metadata=field_metadata)
+    row_filters: Optional[tuple[DataFilter, ...]] = field(default=None, metadata=field_metadata)
+    advanced_filters: Optional[tuple[AdvancedFilter, ...]] = field(default=None, metadata=field_metadata)
     history_filter: Optional[HistoryFilter] = field(default=None, metadata=field_metadata)
     time_filter: Optional[TimeFilter] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
@@ -659,7 +745,7 @@ class DataSetEntity(Base):
     organization_id: Optional[str] = field(default=None, metadata=field_metadata)
     description: Optional[str] = field(default=None, metadata=field_metadata)
     short_description: Optional[str] = field(default=None, metadata=field_metadata)
-    mappings: Optional[Tuple[MarketDataMapping, ...]] = field(default=None, metadata=field_metadata)
+    mappings: Optional[tuple[MarketDataMapping, ...]] = field(default=None, metadata=field_metadata)
     vendor: Optional[MarketDataVendor] = field(default=None, metadata=field_metadata)
     mdapi: Optional[MDAPI] = field(default=None, metadata=field_metadata)
     data_product: Optional[str] = field(default=None, metadata=field_metadata)
@@ -670,10 +756,10 @@ class DataSetEntity(Base):
     coverage_properties: Optional[DataSetCoverageProperties] = field(default=None, metadata=field_metadata)
     defaults: Optional[DataSetDefaults] = field(default=None, metadata=field_metadata)
     filters: Optional[DataSetFilters] = field(default=None, metadata=field_metadata)
-    transformations: Optional[Tuple[DataSetTransformation, ...]] = field(default=None, metadata=field_metadata)
+    transformations: Optional[tuple[DataSetTransformation, ...]] = field(default=None, metadata=field_metadata)
     created_by_id: Optional[str] = field(default=None, metadata=field_metadata)
     created_time: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
     last_updated_by_id: Optional[str] = field(default=None, metadata=field_metadata)
     last_updated_time: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
-    tags: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    tags: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     type_: Optional[DataSetType] = field(default=None, metadata=config(field_name='type', exclude=exclude_none))

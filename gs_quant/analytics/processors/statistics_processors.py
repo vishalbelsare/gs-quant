@@ -17,24 +17,25 @@ under the License.
 from typing import Optional, Union
 
 import pandas as pd
-from pandas import Series
 
 from gs_quant.analytics.core.processor import BaseProcessor, DataCoordinateOrProcessor, DateOrDatetimeOrRDate
 from gs_quant.analytics.core.processor_result import ProcessorResult
 from gs_quant.timeseries import returns
-from gs_quant.timeseries.statistics import percentiles, percentile, Window, mean, sum_, std, var, cov, zscores
+from gs_quant.timeseries.statistics import Window, cov, mean, percentile, percentiles, std, sum_, var, zscores
 
 
 class PercentilesProcessor(BaseProcessor):
-    def __init__(self,
-                 a: DataCoordinateOrProcessor,
-                 *,
-                 b: Optional[DataCoordinateOrProcessor] = None,
-                 start: Optional[DateOrDatetimeOrRDate] = None,
-                 end: Optional[DateOrDatetimeOrRDate] = None,
-                 w: Union[Window, int] = Window(None, 0),
-                 **kwargs):
-        """ PercentilesProcessor
+    def __init__(
+        self,
+        a: DataCoordinateOrProcessor,
+        *,
+        b: Optional[DataCoordinateOrProcessor] = None,
+        start: Optional[DateOrDatetimeOrRDate] = None,
+        end: Optional[DateOrDatetimeOrRDate] = None,
+        w: Union[Window, int] = Window(None, 0),
+        **kwargs,
+    ):
+        """PercentilesProcessor
 
         :param a: DataCoordinate or BaseProcessor for the first series
         :param b: DataCoordinate or BaseProcessor for the second series
@@ -78,15 +79,17 @@ class PercentilesProcessor(BaseProcessor):
 
 
 class PercentileProcessor(BaseProcessor):
-    def __init__(self,
-                 a: DataCoordinateOrProcessor,
-                 *,
-                 n: float,
-                 start: Optional[DateOrDatetimeOrRDate] = None,
-                 end: Optional[DateOrDatetimeOrRDate] = None,
-                 w: Union[Window, int] = None,
-                 **kwargs):
-        """ PercentileProcessor
+    def __init__(
+        self,
+        a: DataCoordinateOrProcessor,
+        *,
+        n: float,
+        start: Optional[DateOrDatetimeOrRDate] = None,
+        end: Optional[DateOrDatetimeOrRDate] = None,
+        w: Union[Window, int] = None,
+        **kwargs,
+    ):
+        """PercentileProcessor
 
         :param a: DataCoordinate or BaseProcessor for the series
         :param n: Percentile
@@ -127,14 +130,16 @@ class PercentileProcessor(BaseProcessor):
 
 
 class MeanProcessor(BaseProcessor):
-    def __init__(self,
-                 a: DataCoordinateOrProcessor,
-                 *,
-                 start: Optional[DateOrDatetimeOrRDate] = None,
-                 end: Optional[DateOrDatetimeOrRDate] = None,
-                 w: Union[Window, int] = None,
-                 **kwargs):
-        """ MeanProcessor
+    def __init__(
+        self,
+        a: DataCoordinateOrProcessor,
+        *,
+        start: Optional[DateOrDatetimeOrRDate] = None,
+        end: Optional[DateOrDatetimeOrRDate] = None,
+        w: Union[Window, int] = None,
+        **kwargs,
+    ):
+        """MeanProcessor
 
         :param a: DataCoordinate or BaseProcessor for the series
         :param start: start date or time used in the underlying data query
@@ -180,14 +185,16 @@ class MeanProcessor(BaseProcessor):
 
 
 class SumProcessor(BaseProcessor):
-    def __init__(self,
-                 a: DataCoordinateOrProcessor,
-                 *,
-                 start: Optional[DateOrDatetimeOrRDate] = None,
-                 end: Optional[DateOrDatetimeOrRDate] = None,
-                 w: Union[Window, int] = None,
-                 **kwargs):
-        """ SumProcessor
+    def __init__(
+        self,
+        a: DataCoordinateOrProcessor,
+        *,
+        start: Optional[DateOrDatetimeOrRDate] = None,
+        end: Optional[DateOrDatetimeOrRDate] = None,
+        w: Union[Window, int] = None,
+        **kwargs,
+    ):
+        """SumProcessor
 
         :param a: DataCoordinate or BaseProcessor for the series
         :param start: start date or time used in the underlying data query
@@ -233,14 +240,16 @@ class SumProcessor(BaseProcessor):
 
 
 class StdDevProcessor(BaseProcessor):
-    def __init__(self,
-                 a: DataCoordinateOrProcessor,
-                 *,
-                 start: Optional[DateOrDatetimeOrRDate] = None,
-                 end: Optional[DateOrDatetimeOrRDate] = None,
-                 w: Union[Window, int] = Window(None, 0),
-                 **kwargs):
-        """ StdDevProcessor
+    def __init__(
+        self,
+        a: DataCoordinateOrProcessor,
+        *,
+        start: Optional[DateOrDatetimeOrRDate] = None,
+        end: Optional[DateOrDatetimeOrRDate] = None,
+        w: Union[Window, int] = Window(None, 0),
+        **kwargs,
+    ):
+        """StdDevProcessor
 
         :param a: DataCoordinate or BaseProcessor for the first series
         :param start: start date or time used in the underlying data query
@@ -285,14 +294,16 @@ class StdDevProcessor(BaseProcessor):
 
 
 class VarianceProcessor(BaseProcessor):
-    def __init__(self,
-                 a: DataCoordinateOrProcessor,
-                 *,
-                 start: Optional[DateOrDatetimeOrRDate] = None,
-                 end: Optional[DateOrDatetimeOrRDate] = None,
-                 w: Union[Window, int] = Window(None, 0),
-                 **kwargs):
-        """ VarianceProcessor
+    def __init__(
+        self,
+        a: DataCoordinateOrProcessor,
+        *,
+        start: Optional[DateOrDatetimeOrRDate] = None,
+        end: Optional[DateOrDatetimeOrRDate] = None,
+        w: Union[Window, int] = Window(None, 0),
+        **kwargs,
+    ):
+        """VarianceProcessor
 
         :param a: DataCoordinate or BaseProcessor for the first series
         :param start: start date or time used in the underlying data query
@@ -336,15 +347,17 @@ class VarianceProcessor(BaseProcessor):
 
 
 class CovarianceProcessor(BaseProcessor):
-    def __init__(self,
-                 a: DataCoordinateOrProcessor,
-                 b: DataCoordinateOrProcessor,
-                 *,
-                 start: Optional[DateOrDatetimeOrRDate] = None,
-                 end: Optional[DateOrDatetimeOrRDate] = None,
-                 w: Union[Window, int] = Window(None, 0),
-                 **kwargs):
-        """ CovarianceProcessor
+    def __init__(
+        self,
+        a: DataCoordinateOrProcessor,
+        b: DataCoordinateOrProcessor,
+        *,
+        start: Optional[DateOrDatetimeOrRDate] = None,
+        end: Optional[DateOrDatetimeOrRDate] = None,
+        w: Union[Window, int] = Window(None, 0),
+        **kwargs,
+    ):
+        """CovarianceProcessor
 
         :param a: DataCoordinate or BaseProcessor for the first series
         :param b: DataCoordinate or BaseProcessor for the second series
@@ -394,14 +407,16 @@ class CovarianceProcessor(BaseProcessor):
 
 
 class ZscoresProcessor(BaseProcessor):
-    def __init__(self,
-                 a: DataCoordinateOrProcessor,
-                 *,
-                 start: Optional[DateOrDatetimeOrRDate] = None,
-                 end: Optional[DateOrDatetimeOrRDate] = None,
-                 w: Union[Window, int] = None,
-                 **kwargs):
-        """ ZscoresProcessor
+    def __init__(
+        self,
+        a: DataCoordinateOrProcessor,
+        *,
+        start: Optional[DateOrDatetimeOrRDate] = None,
+        end: Optional[DateOrDatetimeOrRDate] = None,
+        w: Union[Window, int] = None,
+        **kwargs,
+    ):
+        """ZscoresProcessor
 
         :param a: DataCoordinate or BaseProcessor for the series
         :param start: start date or time used in the underlying data query
@@ -445,14 +460,16 @@ class ZscoresProcessor(BaseProcessor):
 
 
 class StdMoveProcessor(BaseProcessor):
-    def __init__(self,
-                 a: DataCoordinateOrProcessor,
-                 *,
-                 start: Optional[DateOrDatetimeOrRDate] = None,
-                 end: Optional[DateOrDatetimeOrRDate] = None,
-                 w: Union[Window, int] = None,
-                 **kwargs):
-        """ StdMoveProcessor: Returns normalized by std deviation of series a
+    def __init__(
+        self,
+        a: DataCoordinateOrProcessor,
+        *,
+        start: Optional[DateOrDatetimeOrRDate] = None,
+        end: Optional[DateOrDatetimeOrRDate] = None,
+        w: Union[Window, int] = None,
+        **kwargs,
+    ):
+        """StdMoveProcessor: Returns normalized by std deviation of series a
 
         :param a: DataCoordinate or BaseProcessor for the first series
         :param start: start date or time used in the underlying data query
@@ -495,14 +512,16 @@ class StdMoveProcessor(BaseProcessor):
 
 
 class CompoundGrowthRate(BaseProcessor):
-    def __init__(self,
-                 a: DataCoordinateOrProcessor,
-                 *,
-                 start: Optional[DateOrDatetimeOrRDate] = None,
-                 end: Optional[DateOrDatetimeOrRDate] = None,
-                 n: Optional[float] = None,
-                 **kwargs):
-        """ CompoundGrowthRate: indicates the growth rate over given time period n
+    def __init__(
+        self,
+        a: DataCoordinateOrProcessor,
+        *,
+        start: Optional[DateOrDatetimeOrRDate] = None,
+        end: Optional[DateOrDatetimeOrRDate] = None,
+        n: Optional[float] = None,
+        **kwargs,
+    ):
+        """CompoundGrowthRate: indicates the growth rate over given time period n
 
         :param a: DataCoordinate or BaseProcessor of series
         :param start: start date or time used in the underlying data query
@@ -521,8 +540,9 @@ class CompoundGrowthRate(BaseProcessor):
         if isinstance(a_data, ProcessorResult):
             if a_data.success:
                 data_series = a_data.data
-                self.value = ProcessorResult(True,
-                                             Series([(data_series.iloc[-1] / data_series.iloc[0]) ** (1 / self.n) - 1]))
+                self.value = ProcessorResult(
+                    True, pd.Series([(data_series.iloc[-1] / data_series.iloc[0]) ** (1 / self.n) - 1])
+                )
             else:
                 self.value = ProcessorResult(False, "CompoundGrowthRate does not have 'a' series values yet")
         else:

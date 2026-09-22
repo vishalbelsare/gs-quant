@@ -14,11 +14,19 @@
 # Marquee Plot Service will attempt to make public functions (not prefixed with _) from this module available.
 # Such functions should be fully documented: docstrings should describe parameters and the return value, and provide
 # a 1-line description. Type annotations should be provided for parameters.
-import pandas as pd
-import statsmodels.tsa.seasonal
+from enum import Enum
+from typing import Union
 
-from gs_quant.timeseries import diff, annualize, returns
-from .statistics import *
+import pandas as pd
+import statsmodels.tsa.seasonal as seasonal
+import statsmodels.tsa.tsatools as tsatools
+
+from gs_quant.timeseries import annualize, diff, returns
+
+from ..errors import MqValueError
+from .algebra import subtract
+from .helper import Window, apply_ramp, normalize_window, plot_function
+from .statistics import exponential_std, mean, std
 
 """
 Technicals library is for technical analysis functions on timeseries, including moving averages,
@@ -80,6 +88,8 @@ def moving_average(x: pd.Series, w: Union[Window, int, str] = Window(None, 0)) -
     :func:`mean`
 
     """
+    if x.empty:
+        return pd.Series(dtype=float)
     w = normalize_window(x, w)
     return apply_ramp(mean(x, Window(w.w, 0)), w)
 
@@ -102,9 +112,9 @@ def bollinger_bands(x: pd.Series, w: Union[Window, int, str] = Window(None, 0), 
     a range around the price level which responds to local volatility changes. Returns two series,
     upper, :math:`u_t` and lower, :math:`l_t`
 
-    :math:`u_t = \\bar{X_t} + k\sigma_t`
+    :math:`u_t = \\bar{X_t} + k\\sigma_t`
 
-    :math:`l_t = \\bar{X_t} - k\sigma_t`
+    :math:`l_t = \\bar{X_t} - k\\sigma_t`
 
     where :math:`\\bar{X_t}` is the moving average over specified window, and :math:`\\sigma_t` is the rolling
     standard deviation over the specified window
@@ -174,19 +184,21 @@ def smoothed_moving_average(x: pd.Series, w: Union[Window, int, str] = Window(No
     means = apply_ramp(mean(x, Window(window_size, 0)), w)
     if means.size < 1:
         return pd.Series(dtype=float)
-    initial_moving_average = means[0]
+    initial_moving_average = means.iloc[0]
     if (isinstance(ramp, int) and ramp > 0) or isinstance(ramp, pd.DateOffset):
         x = apply_ramp(x, w)
 
     smoothed_moving_averages = x.copy()
     smoothed_moving_averages *= 0
-    smoothed_moving_averages[0] = initial_moving_average
+    smoothed_moving_averages.iloc[0] = initial_moving_average
     for i in range(1, len(x)):
         if isinstance(window_size, int):
             window_num_elem = window_size
         else:
-            window_num_elem = len(x[(x.index > (x.index[i] - window_size)) & (x.index <= x.index[i])])
-        smoothed_moving_averages[i] = ((window_num_elem - 1) * smoothed_moving_averages[i - 1] + x[i]) / window_num_elem
+            window_num_elem = len(x[(x.index > (x.index[i] - window_size).date()) & (x.index <= x.index[i])])
+        smoothed_moving_averages.iloc[i] = (
+            (window_num_elem - 1) * smoothed_moving_averages.iloc[i - 1] + x.iloc[i]
+        ) / window_num_elem
     return smoothed_moving_averages
 
 
@@ -234,12 +246,12 @@ def relative_strength_index(x: pd.Series, w: Union[Window, int, str] = 14) -> pd
     rsi = moving_avg_gains.copy()
     rsi *= 0
 
-    for index in range(0, rsi_len):
-        if moving_avg_losses[index] == 0:
-            rsi[index] = 100
+    for index in range(rsi_len):
+        if moving_avg_losses.iloc[index] == 0:
+            rsi.iloc[index] = 100
         else:
-            relative_strength = moving_avg_gains[index] / moving_avg_losses[index]
-            rsi[index] = 100 - (100 / (1 + relative_strength))
+            relative_strength = moving_avg_gains.iloc[index] / moving_avg_losses.iloc[index]
+            rsi.iloc[index] = 100 - (100 / (1 + relative_strength))
 
     return rsi
 
@@ -308,7 +320,7 @@ def macd(x: pd.Series, m: int = 12, n: int = 26, s: int = 1) -> pd.Series:
 
     :math:`Y_0 = X_0`
 
-    :math:`Y_t = \\beta \cdot Y_{t-1} + (1 - \\beta) \cdot X_t`
+    :math:`Y_t = \\beta \\cdot Y_{t-1} + (1 - \\beta) \\cdot X_t`
 
     where :math:`\\beta = \\frac{2}{\\text{period} + 1}` is the weight we place on the previous average.
 
@@ -419,64 +431,67 @@ def _freq_to_period(x: pd.Series, freq: Frequency = Frequency.YEAR):
     """
     if not isinstance(x.index, pd.DatetimeIndex):
         raise MqValueError("Series must have a pandas.DateTimeIndex.")
+
     pfreq = getattr(getattr(x, 'index', None), 'inferred_freq', None)
-    try:
-        period = statsmodels.tsa.seasonal.freq_to_period(pfreq)
-    except (ValueError, AttributeError):
-        period = None
-    if period in [7, None]:  # daily
-        x = x.asfreq('D', method='ffill')
-        if freq == Frequency.YEAR:
-            return x, 365
-        elif freq == Frequency.QUARTER:
-            return x, 91
-        elif freq == Frequency.MONTH:
-            return x, 30
-        else:
-            return x, 7
-    elif period == 5:  # business day
-        if freq == Frequency.YEAR:
-            return x.asfreq('D', method='ffill'), 365
-        if freq == Frequency.QUARTER:
-            return x.asfreq('D', method='ffill'), 91
-        elif freq == Frequency.MONTH:
-            return x.asfreq('D', method='ffill'), 30
-        else:  # freq == Frequency.WEEKLY:
-            return x.asfreq('B', method='ffill'), 5
-    elif period == 52:  # weekly frequency
-        x = x.asfreq('W', method='ffill')
-        if freq == Frequency.YEAR:
-            return x, period
-        elif freq == Frequency.QUARTER:
-            return x, 13
-        elif freq == Frequency.MONTH:
-            return x, 4
-        else:
+    # Some older versions of statsmodels don't handle some of the newer pandas frequencies, so we manually adjust them
+    pfreq = 'MS' if pfreq in ('ME', 'M') else pfreq  # Convert Month[End] into MonthlyStart
+    pfreq = 'QS' if pfreq in ('QE-DEC', 'QE') else pfreq  # Convert Quarter[End] into QuarterlyStart
+    period = None if pfreq is None else tsatools.freq_to_period(pfreq)
+
+    if period in (7, None):
+        adjusted = x.asfreq('D', method='ffill')
+        return adjusted, {
+            Frequency.YEAR: 365,
+            Frequency.QUARTER: 91,
+            Frequency.MONTH: 30,
+        }.get(freq, 7)
+
+    if period == 5:
+        target_freq = 'B' if freq == Frequency.WEEK else 'D'
+        adjusted = x.asfreq(target_freq, method='ffill')
+        return adjusted, {
+            Frequency.YEAR: 365,
+            Frequency.QUARTER: 91,
+            Frequency.MONTH: 30,
+        }.get(freq, 5)
+
+    if period == 52:
+        adjusted = x.asfreq('W', method='ffill')
+        compatible_periods = {
+            Frequency.YEAR: period,
+            Frequency.QUARTER: 13,
+            Frequency.MONTH: 4,
+        }
+        if freq not in compatible_periods:
             raise MqValueError(f'Frequency {freq.value} not compatible with series with frequency {pfreq}.')
-    elif period == 12:  # monthly frequency
-        x = x.asfreq('M', method='ffill')
-        if freq == Frequency.YEAR:
-            return x, period
-        elif freq == Frequency.QUARTER:
-            return x, 3
-        else:
+        return adjusted, compatible_periods[freq]
+
+    if period == 12:
+        adjusted = x.asfreq('ME', method='ffill')
+        compatible_periods = {
+            Frequency.YEAR: period,
+            Frequency.QUARTER: 3,
+        }
+        if freq not in compatible_periods:
             raise MqValueError(f'Frequency {freq.value} not compatible with series with frequency {pfreq}.')
+        return adjusted, compatible_periods[freq]
+
     return x, period
 
 
-def _seasonal_decompose(x: pd.Series, method: SeasonalModel = SeasonalModel.ADDITIVE,
-                        freq: Frequency = Frequency.YEAR):
+def _seasonal_decompose(x: pd.Series, method: SeasonalModel = SeasonalModel.ADDITIVE, freq: Frequency = Frequency.YEAR):
     x, period = _freq_to_period(x, freq)
     if x.shape[0] < 2 * period:
         # Replace ValueError in seasonal_decompose with more descriptive error
         raise MqValueError(f"Series must have two complete cycles to be analyzed. Series has only {x.shape[0]} dpts.")
-    decompose_obj = statsmodels.tsa.seasonal.seasonal_decompose(x, period=period, model=method.value)
+    decompose_obj = seasonal.seasonal_decompose(x, period=period, model=method.value)
     return decompose_obj
 
 
 @plot_function
-def seasonally_adjusted(x: pd.Series, method: SeasonalModel = SeasonalModel.ADDITIVE,
-                        freq: Frequency = Frequency.YEAR) -> pd.Series:
+def seasonally_adjusted(
+    x: pd.Series, method: SeasonalModel = SeasonalModel.ADDITIVE, freq: Frequency = Frequency.YEAR
+) -> pd.Series:
     """
     Seasonally adjusted series
 
@@ -521,8 +536,7 @@ def seasonally_adjusted(x: pd.Series, method: SeasonalModel = SeasonalModel.ADDI
 
 
 @plot_function
-def trend(x: pd.Series, method: SeasonalModel = SeasonalModel.ADDITIVE, freq: Frequency = Frequency.YEAR) -> \
-        pd.Series:
+def trend(x: pd.Series, method: SeasonalModel = SeasonalModel.ADDITIVE, freq: Frequency = Frequency.YEAR) -> pd.Series:
     """
     Trend of series with seasonality and residuals removed.
 

@@ -13,24 +13,24 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
+
 import logging
-from typing import Tuple, Dict
+
 from gs_quant.session import GsSession
-from gs_quant.target.data_screen import AnalyticsScreen, FilterRequest, DataRow
+from gs_quant.target.data_screen import AnalyticsScreen, DataRow, FilterRequest
 
 _logger = logging.getLogger(__name__)
 
 
 class GsDataScreenApi:
-
     @classmethod
-    def get_screens(cls) -> Tuple[AnalyticsScreen, ...]:
+    def get_screens(cls) -> tuple[AnalyticsScreen, ...]:
         """
         Retrieves screen information about all screens accessible to the current user.
 
         :return: AnalyticsScreen tuple, a tuple containing each screen available to the user.
         """
-        return GsSession.current._get('/data/screens', cls=AnalyticsScreen)['results']
+        return GsSession.current.sync.get('/data/screens', cls=AnalyticsScreen)['results']
 
     @classmethod
     def get_screen(cls, screen_id: str) -> AnalyticsScreen:
@@ -41,10 +41,10 @@ class GsDataScreenApi:
 
         :return: AnalyticsScreen, an object containing information about the screen associated with screen_id.
         """
-        return GsSession.current._get('/data/screens/{id}'.format(id=screen_id), cls=AnalyticsScreen)
+        return GsSession.current.sync.get('/data/screens/{id}'.format(id=screen_id), cls=AnalyticsScreen)
 
     @classmethod
-    def get_column_info(cls, screen_id: str) -> Dict[str, Dict]:
+    def get_column_info(cls, screen_id: str) -> dict[str, dict]:
         """
         Retrieves information about each column in the screen with id corresponding to screen_id. This column
         information can be used to create filters on the screen.
@@ -54,8 +54,7 @@ class GsDataScreenApi:
         :return: dict, a dictionary where each key identifies a column and each value identifies properties of that
         column.
         """
-        return GsSession.current._get(
-            '/data/screens/{id}/filters'.format(id=screen_id))['aggregations']
+        return GsSession.current.sync.get('/data/screens/{id}/filters'.format(id=screen_id))['aggregations']
 
     @classmethod
     def delete_screen(cls, screen_id: str) -> None:
@@ -66,7 +65,7 @@ class GsDataScreenApi:
 
         :return: None
         """
-        return GsSession.current._delete('/data/screens/{id}'.format(id=screen_id))
+        return GsSession.current.sync.delete('/data/screens/{id}'.format(id=screen_id))
 
     @classmethod
     def create_screen(cls, screen: AnalyticsScreen) -> AnalyticsScreen:
@@ -80,10 +79,12 @@ class GsDataScreenApi:
         :return: AnalyticsScreen, the new screen object containing a new id
         """
         request_headers = {'Content-Type': 'application/json;charset=utf-8'}
-        return GsSession.current._post('/data/screens', screen, request_headers=request_headers, cls=AnalyticsScreen)
+        return GsSession.current.sync.post(
+            '/data/screens', screen, request_headers=request_headers, cls=AnalyticsScreen
+        )
 
     @classmethod
-    def filter_screen(cls, screen_id: str, filter_request: FilterRequest) -> Tuple[DataRow, ...]:
+    def filter_screen(cls, screen_id: str, filter_request: FilterRequest) -> tuple[DataRow, ...]:
         """
         Returns filtered data from the screen associated with this screen_id. The filters applied to the data are
         contained in the filters parameter. Any filters previously applied to the relevant screen will be temporarily
@@ -98,8 +99,12 @@ class GsDataScreenApi:
         :return: Tuple of DataRow objects, each DataRow in the tuple is a row of filtered data from this screen.
         """
         request_headers = {'Content-Type': 'application/json;charset=utf-8'}
-        return GsSession.current._post('/data/screens/{id}/filter'.format(id=screen_id), filter_request,
-                                       request_headers=request_headers, cls=DataRow)['results']
+        return GsSession.current.sync.post(
+            '/data/screens/{id}/filter'.format(id=screen_id),
+            filter_request,
+            request_headers=request_headers,
+            cls=DataRow,
+        )['results']
 
     @classmethod
     def update_screen(cls, screen_id: str, screen: AnalyticsScreen) -> AnalyticsScreen:
@@ -120,5 +125,6 @@ class GsDataScreenApi:
         assert screen_id == screen.id_
 
         request_headers = {'Content-Type': 'application/json;charset=utf-8'}
-        return GsSession.current._put('/data/screens/{id}'.format(id=screen_id), screen,
-                                      request_headers=request_headers, cls=AnalyticsScreen)
+        return GsSession.current.sync.put(
+            '/data/screens/{id}'.format(id=screen_id), screen, request_headers=request_headers, cls=AnalyticsScreen
+        )

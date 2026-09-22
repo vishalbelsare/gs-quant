@@ -14,14 +14,14 @@ specific language governing permissions and limitations
 under the License.
 """
 
+import datetime as dt
 from dataclasses import dataclass, fields
-from datetime import datetime
 from enum import Enum
-from typing import Union, List
+from typing import Union
 
 
 def get_utc_now() -> str:
-    return f'{datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]}Z'
+    return f'{dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]}Z'
 
 
 class SortType(str, Enum):
@@ -72,7 +72,7 @@ class DataGridSort:
 class DataGridFilter:
     columnName: str
     operation: FilterOperation
-    value: Union[float, str, List[float], List[str]]
+    value: Union[float, str, list[float], list[str]]
     condition: FilterCondition = FilterCondition.AND
 
     def __post_init__(self):

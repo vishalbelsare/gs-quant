@@ -13,14 +13,15 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
+
 import datetime as dt
 import inspect
 import logging
 import os
 import re
 from enum import Enum, IntEnum
-from functools import wraps, partial
-from typing import Optional, Union, List, Iterable, Callable
+from functools import partial, wraps
+from typing import Callable, Iterable, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -30,12 +31,51 @@ from gs_quant.api.utils import ThreadPoolManager
 from gs_quant.data import DataContext, Dataset
 from gs_quant.datetime.relative_date import RelativeDate
 from gs_quant.entities.entity import EntityType
-from gs_quant.errors import MqValueError, MqRequestError
+from gs_quant.errors import MqRequestError, MqValueError
 from gs_quant.timeseries.measure_registry import register_measure
+
+_PD_VERSION_MATCH = re.match(r'^(\d+)\.(\d+)', pd.__version__)
+_PD_VERSION = (int(_PD_VERSION_MATCH.group(1)), int(_PD_VERSION_MATCH.group(2))) if _PD_VERSION_MATCH else (0, 0)
+
+if _PD_VERSION >= (2, 2):
+    FREQ_DAY = 'D'
+    FREQ_MONTH_START = 'MS'
+    FREQ_MONTH_END = 'ME'
+    FREQ_QUARTER_START = 'QS'
+    FREQ_QUARTER_END = 'QE'
+    FREQ_YEAR_START = 'YS'
+    FREQ_YEAR_END = 'YE'
+    FREQ_HOUR = 'h'
+    FREQ_SECOND = 's'
+    FREQ_BUSINESS_MONTH_END = 'BME'
+    FREQ_BUSINESS_QUARTER_END = 'BQE'
+    FREQ_BUSINESS_YEAR_END = 'BYE'
+    # For period_range (which has different freq requirements)
+    FREQ_PERIOD_QUARTER = 'Q'
+else:  # pragma: no cover
+    FREQ_DAY = 'D'
+    FREQ_MONTH_START = 'MS'
+    FREQ_MONTH_END = 'M'
+    FREQ_QUARTER_START = 'QS'
+    FREQ_QUARTER_END = 'Q'
+    FREQ_YEAR_START = 'YS'
+    FREQ_YEAR_END = 'Y'
+    FREQ_HOUR = 'H'
+    FREQ_SECOND = 'S'
+    FREQ_BUSINESS_MONTH_END = 'BM'
+    FREQ_BUSINESS_QUARTER_END = 'BQ'
+    FREQ_BUSINESS_YEAR_END = 'BY'
+    # For period_range (which has different freq requirements)
+    FREQ_PERIOD_QUARTER = 'Q'
 
 ENABLE_DISPLAY_NAME = 'GSQ_ENABLE_MEASURE_DISPLAY_NAME'
 USE_DISPLAY_NAME = os.environ.get(ENABLE_DISPLAY_NAME) == "1"
 _logger = logging.getLogger(__name__)
+
+
+class Entitlement(Enum):
+    INTERNAL = 'internal'
+
 
 try:
     from quant_extensions.timeseries.rolling import rolling_apply
@@ -43,7 +83,10 @@ except ImportError as e:
     _logger.debug('unable to import rolling_apply extension: %s', e)
 
     def rolling_apply(s: pd.Series, offset: pd.DateOffset, function: Callable[[np.ndarray], float]) -> pd.Series:
-        values = [function(s.loc[(s.index > idx - offset) & (s.index <= idx)]) for idx in s.index]
+        if isinstance(s.index, pd.DatetimeIndex):
+            values = [function(s.loc[(s.index > (idx - offset)) & (s.index <= idx)]) for idx in s.index]
+        else:
+            values = [function(s.loc[(s.index > (idx - offset).date()) & (s.index <= idx)]) for idx in s.index]
         return pd.Series(values, index=s.index, dtype=np.double)
 
 
@@ -57,6 +100,7 @@ def _create_int_enum(name, mappings):
 
 def _to_offset(tenor: str) -> pd.DateOffset:
     import re
+
     matcher = re.fullmatch('(\\d+)([hdwmy])', tenor)
     if not matcher:
         raise MqValueError('invalid tenor ' + tenor)
@@ -122,10 +166,7 @@ class Window:
         self.r = w if r is None else r
 
     def as_dict(self):
-        return {
-            'w': self.w,
-            'r': self.r
-        }
+        return {'w': self.w, 'r': self.r}
 
     @classmethod
     def from_dict(cls, obj):
@@ -145,13 +186,17 @@ def apply_ramp(x: pd.Series, window: Window) -> pd.Series:
     if isinstance(window.w, int) and window.w > len(x):  # does not restrict window size when it is a DataOffset
         return pd.Series(dtype=float)
     if isinstance(window.r, pd.DateOffset):
-        return x.loc[x.index[0] + window.r:]
+        if np.issubdtype(x.index, dt.date):
+            return x.loc[(x.index[0] + window.r).date() :]
+        else:
+            return x.loc[(x.index[0] + window.r).to_pydatetime() :]
     else:
-        return x[window.r:]
+        return x[window.r :]
 
 
-def normalize_window(x: Union[pd.Series, pd.DataFrame], window: Union[Window, int, str, None],
-                     default_window: int = None) -> Window:
+def normalize_window(
+    x: Union[pd.Series, pd.DataFrame], window: Union[Window, int, str, None], default_window: int = None
+) -> Window:
     if default_window is None:
         default_window = len(x)
 
@@ -190,14 +235,21 @@ def check_forward_looking(pricing_date, source, name="function"):
     if pricing_date is not None or source != 'plottool':
         return
     if DataContext.current.end_date <= dt.date.today():
-        msg = (f'{name}() requires a forward looking date range e.g. [0d, 3y]. '
-               'Please update the date range via the date picker.')
+        msg = (
+            f'{name}() requires a forward looking date range e.g. [0d, 3y]. '
+            'Please update the date range via the date picker.'
+        )
         raise MqValueError(msg)
 
 
-def plot_measure(asset_class: tuple, asset_type: Optional[tuple] = None,
-                 dependencies: Optional[List[QueryType]] = tuple(), asset_type_excluded: Optional[tuple] = None,
-                 display_name: Optional[str] = None):
+def plot_measure(
+    asset_class: tuple,
+    asset_type: Optional[tuple] = None,
+    dependencies: Optional[list[QueryType]] = tuple(),
+    asset_type_excluded: Optional[tuple] = None,
+    display_name: Optional[str] = None,
+    entitlements: Optional[list[Entitlement]] = [],
+):
     # Indicates that fn should be exported to plottool as a member function / pseudo-measure.
     # Set category to None for no restrictions, else provide a tuple of allowed values.
     def decorator(fn):
@@ -213,6 +265,7 @@ def plot_measure(asset_class: tuple, asset_type: Optional[tuple] = None,
         fn.asset_type = asset_type
         fn.asset_type_excluded = asset_type_excluded
         fn.dependencies = dependencies
+        fn.entitlements = entitlements
 
         if USE_DISPLAY_NAME:
             fn.display_name = display_name
@@ -302,17 +355,13 @@ def get_df_with_retries(fetcher, start_date, end_date, exchange, retries=1):
     return result
 
 
-def get_dataset_data_with_retries(dataset: Dataset,
-                                  *,
-                                  start: dt.date,
-                                  end: dt.date,
-                                  count: int = 0,
-                                  max_retries: int = 5,
-                                  **kwargs) -> pd.DataFrame:
+def get_dataset_data_with_retries(
+    dataset: Dataset, *, start: dt.date, end: dt.date, count: int = 0, max_retries: int = 5, **kwargs
+) -> pd.DataFrame:
     try:
         data = dataset.get_data(start=start, end=end, **kwargs)
     except MqRequestError as e:
-        if 'Number of rows returned by your query is more than maximum allowed' in e.message and count < max_retries:
+        if count < max_retries:
             mid = start + (end - start) / 2
             count += 1
             first_half = partial(get_dataset_data_with_retries, dataset, start=start, end=mid, count=count, **kwargs)
@@ -324,6 +373,17 @@ def get_dataset_data_with_retries(dataset: Dataset,
         else:
             raise e
     return data
+
+
+def get_dataset_with_many_assets(
+    ds: Dataset, *, assets: list[str], start: dt.date, end: dt.date, batch_limit: int = 100, **kwargs
+) -> pd.DataFrame:
+    tasks = [
+        partial(ds.get_data, assetId=assets[i : i + batch_limit], start=start, end=end, return_type=None, **kwargs)
+        for i in range(0, len(assets), batch_limit)
+    ]
+    results = ThreadPoolManager.run_async(tasks)
+    return pd.concat(results)
 
 
 def _month_to_tenor(months: int) -> str:
@@ -351,10 +411,9 @@ def _pandas_roll(s: pd.Series, window_str: str, method_name: str):
     return getattr(s.rolling(window_str), method_name)()
 
 
-def rolling_offset(s: pd.Series,
-                   offset: pd.DateOffset,
-                   function: Callable[[np.ndarray], float],
-                   method_name: str = None) -> pd.Series:
+def rolling_offset(
+    s: pd.Series, offset: pd.DateOffset, function: Callable[[np.ndarray], float], method_name: str = None
+) -> pd.Series:
     """
     Perform rolling window calculations. If offset has a fixed frequency and method name is provided, will use
     `Series.rolling< https://pandas.pydata.org/docs/reference/api/pandas.Series.rolling.html>`_ for best performance.
@@ -366,12 +425,7 @@ def rolling_offset(s: pd.Series,
     :return: result time series
     """
     # frequencies that can be passed to Series.rolling
-    fixed = {
-        'hour': 'H',
-        'hours': 'H',
-        'day': 'D',
-        'days': 'D'
-    }
+    fixed = {'hour': 'h', 'hours': 'h', 'day': 'D', 'days': 'D'}
 
     if method_name and len(offset.kwds) == 1:
         freq, count = offset.kwds.popitem()

@@ -13,39 +13,60 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
-import datetime as dt
-from datetime import date
 
-import gs_quant.risk as risk
+import datetime as dt
+
 import numpy as np
 import pytest
-from gs_quant.instrument import IRSwap, IRBasisSwap, IRSwaption, FXMultiCrossBinary, FXMultiCrossBinaryLeg
-from gs_quant.markets import HistoricalPricingContext, PricingContext, CloseMarket, MarketDataCoordinate
+
+import gs_quant.risk as risk
+from gs_quant.base import RiskKey
+from gs_quant.common import MarketDataPattern, RiskRequestParameters
+from gs_quant.instrument import CommodSwap, FXMultiCrossBinary, FXMultiCrossBinaryLeg, IRBasisSwap, IRSwap, IRSwaption
+from gs_quant.markets import CloseMarket, HistoricalPricingContext, MarketDataCoordinate, PricingContext
 from gs_quant.markets.portfolio import Portfolio
-from gs_quant.risk import MultiScenario
-from gs_quant.risk import Price, RollFwd, CurveScenario, ErrorValue, DataFrameWithInfo, AggregationLevel, PnlExplain
-from gs_quant.risk.core import aggregate_risk, SeriesWithInfo, FloatWithInfo
-from gs_quant.risk.results import MultipleScenarioFuture
-from gs_quant.risk.results import MultipleScenarioResult
+from gs_quant.risk import (
+    AggregationLevel,
+    CurveScenario,
+    DataFrameWithInfo,
+    ErrorValue,
+    MultiScenario,
+    PnlExplain,
+    Price,
+    ResolvedInstrumentValues,
+    RollFwd,
+)
+from gs_quant.risk.core import FloatWithInfo, SeriesWithInfo, StringWithInfo, aggregate_risk
+from gs_quant.risk.results import MultipleScenarioFuture, MultipleScenarioResult
 from gs_quant.risk.transform import ResultWithInfoAggregator
-from gs_quant.target.common import MarketDataPattern
 from gs_quant.test.utils.mock_calc import MockCalc
 
-curvescen1 = CurveScenario(market_data_pattern=MarketDataPattern('IR', 'USD'), parallel_shift=5,
-                           name='parallel shift5bp')
-curvescen2 = CurveScenario(market_data_pattern=MarketDataPattern('IR', 'USD'), curve_shift=1, tenor_start=5,
-                           tenor_end=30, name='curve shift1bp')
-rollfwd = RollFwd(date=date(2020, 11, 3), name='roll fwd scenario')
+curvescen1 = CurveScenario(
+    market_data_pattern=MarketDataPattern('IR', 'USD'), parallel_shift=5, name='parallel shift5bp'
+)
+curvescen2 = CurveScenario(
+    market_data_pattern=MarketDataPattern('IR', 'USD'),
+    curve_shift=1,
+    tenor_start=5,
+    tenor_end=30,
+    name='curve shift1bp',
+)
+rollfwd = RollFwd(date=dt.date(2020, 11, 3), name='roll fwd scenario')
 multiscenario = MultiScenario(scenarios=tuple((curvescen1, curvescen2)), name='multiscenario')
 
 
 def get_attributes(p, risks, ctx='PricingCtx1', resolve=False, no_frame=False):
-    contexts = {'Multiple': HistoricalPricingContext(date(2020, 1, 14), date(2020, 1, 15), market_data_location='LDN'),
-                'PricingCtx1': PricingContext(date(2020, 1, 14), market_data_location='LDN'),
-                'Multiple2': HistoricalPricingContext(date(2020, 1, 16), date(2020, 1, 17), market_data_location='LDN'),
-                'PricingCtx2': PricingContext(date(2020, 1, 16), market_data_location='NYC'),
-                'PricingCtx3': PricingContext(date(2020, 1, 16), market_data_location='LDN'),
-                'RollFwd': rollfwd, 'CurveScen1': curvescen1, 'CurveScen2': curvescen2, 'MultiScen': multiscenario}
+    contexts = {
+        'Multiple': HistoricalPricingContext(dt.date(2020, 1, 14), dt.date(2020, 1, 15), market_data_location='LDN'),
+        'PricingCtx1': PricingContext(dt.date(2020, 1, 14), market_data_location='LDN'),
+        'Multiple2': HistoricalPricingContext(dt.date(2020, 1, 16), dt.date(2020, 1, 17), market_data_location='LDN'),
+        'PricingCtx2': PricingContext(dt.date(2020, 1, 16), market_data_location='NYC'),
+        'PricingCtx3': PricingContext(dt.date(2020, 1, 16), market_data_location='LDN'),
+        'RollFwd': rollfwd,
+        'CurveScen1': curvescen1,
+        'CurveScen2': curvescen2,
+        'MultiScen': multiscenario,
+    }
     if resolve:
         p.resolve()
     if contexts.get(ctx):
@@ -70,18 +91,31 @@ swap_5 = IRSwap("Pay", "5y", "GBP", fixed_rate=-0.005, name="5y")
 swap_6 = IRSwap("Pay", "10y", "GBP", fixed_rate=-0.005, name="10y")
 swap_7 = IRSwap("Pay", "5y", "JPY", fixed_rate=-0.005, name="5y")
 swap_8 = IRSwap("Pay", "10y", "JPY", fixed_rate=-0.005, name="10y")
+commod_swap = CommodSwap(name="Test")
 eur_port = Portfolio([swap_1, swap_2], name="EUR")
 usd_port = Portfolio([swap_3, swap_4], name="USD")
 gbp_port = Portfolio([swap_5, swap_6], name="GBP")
 jpy_port = Portfolio([swap_7, swap_8], name='JPY')
 port1 = Portfolio([eur_port, gbp_port], name='EURGBP')
 port2 = Portfolio([jpy_port, usd_port], name='USDJPY')
+commod_port = Portfolio([commod_swap])
 port = Portfolio([port1, port2])
-swaption_port = Portfolio([IRSwaption("Receive", '5y', 'USD', expiration_date='2m', strike='atm', name='Swaption1'),
-                           IRSwaption("Receive", '10y', 'USD', expiration_date='3m', strike='atm', name='Swaption2')])
+swaption_port = Portfolio(
+    [
+        IRSwaption("Receive", '5y', 'USD', expiration_date='2m', strike='atm', name='Swaption1'),
+        IRSwaption("Receive", '10y', 'USD', expiration_date='3m', strike='atm', name='Swaption2'),
+    ]
+)
 
-bs = IRBasisSwap(termination_date="2y", notional_currency="GBP", notional_amount="$405392/bp", effective_date="10y",
-                 payer_rate_option="OIS", receiver_frequency="3m", name='IRBasisSwap')
+bs = IRBasisSwap(
+    termination_date="2y",
+    notional_currency="GBP",
+    notional_amount="$405392/bp",
+    effective_date="10y",
+    payer_rate_option="OIS",
+    receiver_frequency="3m",
+    name='IRBasisSwap',
+)
 
 bs_port = Portfolio([bs])
 mixed_port = Portfolio([bs_port, gbp_port])
@@ -137,12 +171,12 @@ def price_values_test(res, f, with_dates=''):
     else:
         res_val_map = [n for r in res for n in r.values] if with_dates == 'dated' else list(res)
 
-    f = f.replace('N/A', np.NaN)[f['risk_measure'] == risk.Price].dropna(axis='columns')
+    f = f.replace('N/A', np.nan)[f['risk_measure'] == risk.Price].dropna(axis='columns')
     df_val_map = f['value'].values
-    f.drop('value', axis=1, inplace=True)
+    f = f.drop('value', axis=1)
 
     assert all(res_val_map == df_val_map)  # check if price values are correctly tabulated
-    assert (port_depth == f.columns.size)  # check if index setting is correct
+    assert port_depth == f.columns.size  # check if index setting is correct
 
 
 def test_multi_scenario(mocker):
@@ -176,7 +210,7 @@ def test_multi_scenario(mocker):
 
 def test_historical_multi_scenario(mocker):
     with MockCalc(mocker):
-        with HistoricalPricingContext(date(2020, 1, 14), date(2020, 1, 15), market_data_location='LDN'):
+        with HistoricalPricingContext(dt.date(2020, 1, 14), dt.date(2020, 1, 15), market_data_location='LDN'):
             with multiscenario:
                 res = Portfolio(swap_3).price()
                 res_multi_rm = Portfolio(swap_3).calc((risk.Price, risk.IRFwdRate))
@@ -185,9 +219,9 @@ def test_historical_multi_scenario(mocker):
     default_pivot_table_test(res_multi_rm, with_dates='dated')
 
     # test slicing
-    date_res = res[date(2020, 1, 14)]
+    date_res = res[dt.date(2020, 1, 14)]
     assert all([isinstance(r, FloatWithInfo) for r in date_res.futures[0].result().values()])
-    date_res_2 = res_multi_rm[swap_3][risk.Price][date(2020, 1, 14)]
+    date_res_2 = res_multi_rm[swap_3][risk.Price][dt.date(2020, 1, 14)]
     assert all([isinstance(r, FloatWithInfo) for r in date_res_2.values()])
 
     scen_slice_res = res[curvescen2]
@@ -198,6 +232,13 @@ def test_historical_multi_scenario(mocker):
     futures = res.futures
     assert isinstance(futures[0], MultipleScenarioFuture)
     assert isinstance(futures[0].result(), MultipleScenarioResult)
+
+
+def test_series_with_info_arithmetics(mocker):
+    series_info = SeriesWithInfo([2.0, 4.0], [dt.date(2021, 4, 11), dt.date(2022, 4, 11)])
+    scaled = series_info * 100
+    assert isinstance(scaled, SeriesWithInfo)
+    assert tuple(scaled.values) == (200.0, 400.0)
 
 
 def test_composite_multi_scenario(mocker):
@@ -236,7 +277,8 @@ def test_one_portfolio(mocker):
     agg_r2 = r2.aggregate().to_frame().values[0]
     assert agg_r1 == sum(f1['value'].values)
     assert all(
-        agg_r2 == [sum(f2.loc[f2['risk_measure'] == rm]['value'].values) for rm in [risk.Price, risk.DollarPrice]])
+        agg_r2 == [sum(f2.loc[f2['risk_measure'] == rm]['value'].values) for rm in [risk.Price, risk.DollarPrice]]
+    )
 
 
 def test_dated_risk_values(mocker):
@@ -263,27 +305,27 @@ def test_dated_risk_values(mocker):
     assert sub_res1 == res1
 
     # slice one date
-    slice_date_res2 = res2[date(2020, 1, 14)]
+    slice_date_res2 = res2[dt.date(2020, 1, 14)]
     assert all(slice_date_res2.to_frame(None, None, None) == frame4)
     slice_date_res3 = slice_date_res2[risk.Price]
     assert all(slice_date_res3.to_frame(None, None, None) == frame3)
 
     # slice dates
-    slice_date_res2 = res2[[date(2020, 1, 14), date(2020, 1, 15)]]
+    slice_date_res2 = res2[[dt.date(2020, 1, 14), dt.date(2020, 1, 15)]]
     assert all(slice_date_res2.to_frame(None, None, None) == frame2)
 
     # test aggregate
     agg_res5 = res5.aggregate().to_frame(None, None, None)
 
     def filter_lambda(x):
-        return (x['risk_measure'] == risk.DollarPrice) & (x['dates'] == date(2020, 1, 14))
+        return (x['risk_measure'] == risk.DollarPrice) & (x['dates'] == dt.date(2020, 1, 14))
 
     manual_agg_r5 = frame5.loc[frame5.apply(filter_lambda, axis=1)]['value'].values.sum()
     filter_agg_res5 = agg_res5.loc[agg_res5.apply(filter_lambda, axis=1)]['value'].values[0]
     assert filter_agg_res5 == manual_agg_r5
 
-    sub_res6 = res6.aggregate().to_frame().loc[date(2020, 1, 14)].values[0]
-    manual_agg_r6 = frame6.loc[frame6['dates'] == date(2020, 1, 14)]['value'].values.sum()
+    sub_res6 = res6.aggregate().to_frame().loc[dt.date(2020, 1, 14)].values[0]
+    manual_agg_r6 = frame6.loc[frame6['dates'] == dt.date(2020, 1, 14)]['value'].values.sum()
     assert sub_res6 == manual_agg_r6
 
 
@@ -295,13 +337,14 @@ def test_bucketed_risks(mocker):
         _, res4, frame4 = get_attributes(port1, risk.IRDelta, 'Multiple')
         _, res5, frame5 = get_attributes(bs_port, risk.IRBasis(aggregation_level=AggregationLevel.Asset))
         _, res6, frame6 = get_attributes(jpy_port, risk.IRBasis(aggregation_level=AggregationLevel.Asset), 'Multiple')
+        _, res7, frame7 = get_attributes(commod_port, risk.CommodDelta, "Multiple")
 
     def check_depth(res, f, with_dates=''):
         temp_res = list(res)[0].drop('value', axis=1)
         port_depth = len(max(res.portfolio.all_paths, key=len)) + temp_res.columns.size
         port_depth = port_depth + 2 if with_dates == 'dated' else port_depth + 1
         f_temp = f.drop('value', axis=1)
-        assert (port_depth == f_temp.columns.size)
+        assert port_depth == f_temp.columns.size
 
     check_depth(res1, frame1)
     check_depth(res2, frame2)
@@ -309,6 +352,7 @@ def test_bucketed_risks(mocker):
     check_depth(res4, frame4, 'dated')
     check_depth(res5, frame5)
     check_depth(res6, frame6, 'dated')
+    check_depth(res7, frame7, 'dated')
 
     default_pivot_table_test(res1, 'has_bucketed')
     default_pivot_table_test(res2, 'has_bucketed')
@@ -316,6 +360,7 @@ def test_bucketed_risks(mocker):
     default_pivot_table_test(res4, 'has_bucketed')
     default_pivot_table_test(res5, 'has_bucketed')
     default_pivot_table_test(res6, 'has_bucketed')
+    default_pivot_table_test(res7, 'has_bucketed')
 
     # test slicing
     # slice one portfolio
@@ -323,10 +368,10 @@ def test_bucketed_risks(mocker):
     assert all(sub_res2.to_frame() == res1.to_frame())
 
     # slice one date
-    sub_res4 = res4[date(2020, 1, 14)]
+    sub_res4 = res4[dt.date(2020, 1, 14)]
     assert all(sub_res4[gbp_port].to_frame(None, None, None) == frame3)
     # slice dates
-    sub_res4b = res4[[date(2020, 1, 14), date(2020, 1, 15)]]
+    sub_res4b = res4[[dt.date(2020, 1, 14), dt.date(2020, 1, 15)]]
     assert all(sub_res4b.to_frame(None, None, None) == frame4)
 
     # test aggregate
@@ -335,12 +380,15 @@ def test_bucketed_risks(mocker):
     np.testing.assert_almost_equal(agg_r1.loc[agg_r1['mkt_point'] == '5Y']['value'].values[0], manual_agg_f1, 8)
 
     def filter_lambda(x):
-        return (x['dates'] == date(2020, 1, 14)) & (x['mkt_asset'] == 'JPY OIS/JPY-3M')
+        return (x['dates'] == dt.date(2020, 1, 14)) & (x['mkt_asset'] == 'JPY OIS/JPY-3M')
 
     agg_r6 = res6.aggregate().to_frame()
     filter_agg_r6 = agg_r6.loc[agg_r6.apply(filter_lambda, axis=1)]['value'].values[0]
     manual_agg_f6 = frame6.loc[frame6.apply(filter_lambda, axis=1)]['value'].values.sum()
     np.testing.assert_almost_equal(filter_agg_r6, manual_agg_f6, 8)
+
+    assert isinstance(res7[dt.date(2020, 1, 14)].result().futures[0].result(), DataFrameWithInfo)
+    assert res7[dt.date(2020, 1, 14)].to_frame()["mkt_type"].iloc[0] == "CMD NRG"
 
 
 def test_cashflows_risk(mocker):
@@ -369,9 +417,13 @@ def test_nested_portfolio(mocker):
     price_values_test(res1, frame1)
     price_values_test(res2, frame2)
     dollar_eur_frame1 = frame1[(frame1['portfolio_name_0'] == 'EUR') & (frame1['risk_measure'] == risk.DollarPrice)][
-        'value'].values
-    dollar_eur_frame2 = frame2[(frame2['portfolio_name_0'] == 'EURGBP') & (frame2['portfolio_name_1'] == 'EUR') &
-                               (frame2['risk_measure'] == risk.DollarPrice)]['value'].values
+        'value'
+    ].values
+    dollar_eur_frame2 = frame2[
+        (frame2['portfolio_name_0'] == 'EURGBP')
+        & (frame2['portfolio_name_1'] == 'EUR')
+        & (frame2['risk_measure'] == risk.DollarPrice)
+    ]['value'].values
 
     default_pivot_table_test(res1)
     default_pivot_table_test(res2)
@@ -398,13 +450,14 @@ def test_diff_types_risk_measures(mocker):
     with MockCalc(mocker):
         _, res1, frame1 = get_attributes(eur_port, (risk.Price, risk.IRDelta))
         _, res2, frame2 = get_attributes(mixed_port, (risk.IRBasis, risk.Price))
-        _, res3, frame3 = get_attributes(mixed_port,
-                                         (risk.IRBasis(aggregation_level=AggregationLevel.Asset), risk.Price))
+        _, res3, frame3 = get_attributes(
+            mixed_port, (risk.IRBasis(aggregation_level=AggregationLevel.Asset), risk.Price)
+        )
         _, res4, frame4 = get_attributes(eur_port, (risk.IRDelta, risk.Price), 'Multiple')
         _, res5, frame5 = get_attributes(mixed_port, (risk.Price, risk.IRBasis), 'Multiple')
-        _, res6, frame6 = get_attributes(mixed_port,
-                                         (risk.IRBasis(aggregation_level=AggregationLevel.Asset), risk.Price),
-                                         'Multiple')
+        _, res6, frame6 = get_attributes(
+            mixed_port, (risk.IRBasis(aggregation_level=AggregationLevel.Asset), risk.Price), 'Multiple'
+        )
 
     price_values_test(res1, frame1)
     price_values_test(res2, frame2)
@@ -431,14 +484,19 @@ def test_empty_calc_request(mocker):
     with MockCalc(mocker):
         _, r1, f1 = get_attributes(swap_port1, (risk.IRVega, risk.Price))
         _, r2, f2 = get_attributes(swap_port2, (risk.IRVega(aggregation_level=AggregationLevel.Asset), risk.Price))
-        _, r3, f3 = get_attributes(swap_port1, (
-            risk.IRVega(aggregation_level=AggregationLevel.Asset, currency='local'), risk.Price))
+        _, r3, f3 = get_attributes(
+            swap_port1, (risk.IRVega(aggregation_level=AggregationLevel.Asset, currency='local'), risk.Price)
+        )
         _, r4, f4 = get_attributes(swap_port2, (risk.Price, risk.IRVega(currency='local')))
         _, r5, f5 = get_attributes(swap_port2, (risk.Price, risk.IRVega), 'Multiple')
-        _, r6, f6 = get_attributes(swap_port1, (risk.IRVega(aggregation_level=AggregationLevel.Asset), risk.Price),
-                                   'Multiple')
-        _, r7, f7 = get_attributes(swap_port2, (
-            risk.IRVega(aggregation_level=AggregationLevel.Asset, currency='local'), risk.Price), 'Multiple')
+        _, r6, f6 = get_attributes(
+            swap_port1, (risk.IRVega(aggregation_level=AggregationLevel.Asset), risk.Price), 'Multiple'
+        )
+        _, r7, f7 = get_attributes(
+            swap_port2,
+            (risk.IRVega(aggregation_level=AggregationLevel.Asset, currency='local'), risk.Price),
+            'Multiple',
+        )
         _, r8, f8 = get_attributes(swap_port1, (risk.IRVega(currency='local'), risk.Price), 'Multiple')
 
     price_values_test(r1, f1)
@@ -463,14 +521,24 @@ def test_empty_calc_request(mocker):
 def test_adding_risk_results(mocker):
     with MockCalc(mocker):
         result1 = get_attributes(eur_port, risk.Price, no_frame=True)
-        result2 = get_attributes(eur_port,
-                                 (risk.IRDelta(aggregation_level=AggregationLevel.Asset, currency='local'), risk.Price),
-                                 no_frame=True)
-        result3 = get_attributes(swaption_port,
-                                 (risk.IRDelta(aggregation_level=AggregationLevel.Asset, currency='local'), risk.Price),
-                                 no_frame=True)
+        result2 = get_attributes(
+            eur_port,
+            (risk.IRDelta(aggregation_level=AggregationLevel.Asset, currency='local'), risk.Price),
+            no_frame=True,
+        )
+        result3 = get_attributes(
+            swaption_port,
+            (risk.IRDelta(aggregation_level=AggregationLevel.Asset, currency='local'), risk.Price),
+            no_frame=True,
+        )
         result4 = get_attributes(port1, risk.Price, no_frame=True)
-        result5 = get_attributes(swaption_port, risk.IRVega(aggregation_level=AggregationLevel.Asset, ), no_frame=True)
+        result5 = get_attributes(
+            swaption_port,
+            risk.IRVega(
+                aggregation_level=AggregationLevel.Asset,
+            ),
+            no_frame=True,
+        )
         result6 = get_attributes(jpy_port, (risk.Price,), 'RollFwd', no_frame=True)
         result7 = get_attributes(jpy_port, risk.Price, 'CurveScen1', no_frame=True)
         result8 = get_attributes(jpy_port, (risk.DollarPrice, risk.Price), 'CurveScen2', no_frame=True)
@@ -565,6 +633,19 @@ def test_unsupported_error_datums(mocker):
     assert isinstance(f4['value'].values[0], ErrorValue)
 
 
+def test_resolution_of_error_trade(mocker):
+    with MockCalc(mocker):
+        error_trade = IRSwap(notional_currency='EUR', termination_date='10y', fixed_rate='bob')
+        resolved_trade = error_trade.calc(ResolvedInstrumentValues)
+        assert isinstance(resolved_trade, ErrorValue)
+
+        try:
+            _ = resolved_trade.fixed_rate  # this should fail
+            assert 1 == 2
+        except AttributeError as e:
+            assert 'Error was' in str(e)
+
+
 def test_resolve_to_frame(mocker):
     # makes sure resolving portfolio doesn't break to_frame
     with MockCalc(mocker):
@@ -595,7 +676,7 @@ def test_leg_valuations(mocker):
     assert 'path' in f1.columns
 
 
-def test_aggregation_with_diff_risk_keys(mocker):
+def test_aggregation_with_heterogeous_types(mocker):
     with MockCalc(mocker):
         portfolio1 = Portfolio([IRSwaption('Pay', '10y', 'EUR', expiration_date='3m', name='EUR3m10ypayer')])
         portfolio2 = Portfolio([IRSwaption('Pay', '10y', 'EUR', expiration_date='6m', name='EUR6m10ypayer')])
@@ -615,10 +696,24 @@ def test_aggregation_with_diff_risk_keys(mocker):
 
 def test_aggregation_with_empty_measures(mocker):
     with MockCalc(mocker):
-        swaptions = (IRSwaption(notional_currency='EUR', termination_date='7y', expiration_date='1y',
-                                pay_or_receive='Receive', strike='ATM+35', name='EUR 1y7y'),
-                     IRSwaption(notional_currency='EUR', termination_date='10y', expiration_date='2w',
-                                pay_or_receive='Receive', strike='ATM+50', name='EUR 2w10y'))
+        swaptions = (
+            IRSwaption(
+                notional_currency='EUR',
+                termination_date='7y',
+                expiration_date='1y',
+                pay_or_receive='Receive',
+                strike='ATM+35',
+                name='EUR 1y7y',
+            ),
+            IRSwaption(
+                notional_currency='EUR',
+                termination_date='10y',
+                expiration_date='2w',
+                pay_or_receive='Receive',
+                strike='ATM+50',
+                name='EUR 2w10y',
+            ),
+        )
         portfolio = Portfolio(swaptions)
 
         from_date = dt.date(2021, 11, 18)
@@ -653,3 +748,68 @@ def test_transformation(mocker):
 
     transformed_res = ladder_res.transform(ResultWithInfoAggregator())
     np.testing.assert_almost_equal(transformed_res.aggregate(), ladder_res.to_frame()['value'].sum())
+
+
+def test_aggregation_with_identical_trades(mocker):
+    with MockCalc(mocker):
+        swaptions = (
+            IRSwaption(
+                notional_currency='EUR',
+                termination_date='7y',
+                expiration_date='1y',
+                pay_or_receive='Receive',
+                strike='ATM+35',
+                name='trade_1',
+            ),
+            IRSwaption(
+                notional_currency='EUR',
+                termination_date='7y',
+                expiration_date='1y',
+                pay_or_receive='Receive',
+                strike='ATM+35',
+                name='trade_2',
+            ),
+        )
+        portfolio = Portfolio(swaptions)
+
+        delta = portfolio.calc(risk.IRDelta)
+        transformed_res = delta.transform(ResultWithInfoAggregator())
+        np.testing.assert_almost_equal(transformed_res.aggregate(), delta.to_frame()['value'].sum())
+
+
+def test_scalar_with_info_on_instrument():
+    # Historically there was a problem with setting risk results that were a scalar with info on an instrument
+    # This was because of how copy.deepcopy would try and pickle/unpickle the class. This test checks that we can set
+    # properties and still to_dict and _to_json the class
+    risk_key = RiskKey("provider", "the_date", "mkt", RiskRequestParameters(), None, None)
+    fwi = FloatWithInfo(
+        risk_key,
+        1.56,
+    )
+    swi = StringWithInfo(risk_key, 'USD')
+
+    swap = IRSwap(floating_rate_option=swi, fixed_rate=fwi)
+    swap_dict = swap.to_dict()
+
+    assert swap_dict["floatingRateOption"] == "USD"
+    assert swap_dict["fixedRate"] == 1.56
+
+    assert swap.to_json() is not None
+
+
+def test_display_unit():
+    unit = {'A': 1, 'B': -1}
+    risk_key = RiskKey("provider", "the_date", "mkt", RiskRequestParameters(), None, None)
+    value = 1.0
+    float_with_unit = FloatWithInfo(risk_key, value, unit)
+    assert float_with_unit.__repr__() == '1.0 (A/B)'
+
+    unit = {'A': 1, 'B': -2}
+    float_with_unit = FloatWithInfo(risk_key, value, unit)
+    assert float_with_unit.__repr__() == '1.0 (A/B^2)'
+
+    unit = {'A': 2}
+    float_with_unit = FloatWithInfo(risk_key, value, unit)
+    assert float_with_unit.__repr__() == '1.0 (A^2)'
+
+    assert str(float_with_unit) == '1.0'

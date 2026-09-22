@@ -15,10 +15,22 @@ stages:
   - .pre
   - test
   - clmscan
+  - etch_upload
   - .post
+  - code-quality
   
-test:py39:
-  image: "registry.aws.site.gs.com:443/dsml/python/python-raw-image/python3.9-rhel7:current"
+cloud_etch_upload:
+  stage: etch_upload
+  tags:
+  - linux
+  - default
+  - kubernetes
+  image: registry.aws.site.gs.com:443/dx/ete/cloudetch-uploader:current
+  script:
+  - "$CLOUD_ETCH_UPLOAD"
+  
+test:py310:
+  image: "registry.aws.site.gs.com:443/dx/py-eng/python-images/python3.10-rhel8-prod:current"
   stage: test 
   tags: [ linux, default, kubernetes ]
   before_script:
@@ -28,8 +40,28 @@ test:py39:
     - pip3 install -i $GS_PYPI_URL --trusted-host $GS_PYPI_HOST --upgrade pip
     - pip3 install -i $GS_PYPI_URL --trusted-host $GS_PYPI_HOST .[test]
   script:
-    - pytest -rsx gs_quant/test --junitxml=pytest.xml
+    - pytest -rsx gs_quant/test --junitxml=pytest.xml --cov=gs_quant --cov-report term-missing
+  coverage: /TOTAL.*\s+(\d+%)$/
   artifacts:
     when: always
     paths:
       - "pytest.xml"
+
+#
+# Publish to SonarQube
+#
+sonar_analysis:
+  allow_failure: true
+  stage: code-quality
+  dependencies: [ test:py310 ]
+  image: prod.container-registry.site.gs.com/spr-946250/gs-sonar-scanner-cli:current
+  tags: [ kubernetes, linux, default ]
+  before_script: [] # override global before_script if defined
+  coverage: /SonarQube Coverage ([0-9.]{1,5})%/
+  variables:
+    GIT_DEPTH: 0
+  script:
+    - run-sonar-scanner.sh
+  artifacts:
+    reports:
+      codequality: gl-code-quality-report.json

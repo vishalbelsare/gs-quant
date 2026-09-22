@@ -7,12 +7,10 @@
 
    
    
+   .. rubric:: Methods
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   __init__
+   .. automethod:: __init__
    
    
    

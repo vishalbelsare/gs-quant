@@ -14,16 +14,25 @@ specific language governing permissions and limitations
 under the License.
 """
 
-import datetime as dt
-import numpy as np
 import calendar as cal
+import datetime as dt
+import zoneinfo
 from enum import Enum, IntEnum
-from pytz import timezone
-from typing import Iterable, Optional, Tuple, Union
+from typing import Iterable, Optional, Union
+
+import numpy as np
+
+from gs_quant.common import PricingLocation
 from gs_quant.datetime.gscalendar import GsCalendar
-from gs_quant.target.common import PricingLocation
 
 DateOrDates = Union[dt.date, Iterable[dt.date]]
+
+location_to_tz_mapping = {
+    PricingLocation.NYC: zoneinfo.ZoneInfo("America/New_York"),
+    PricingLocation.LDN: zoneinfo.ZoneInfo("Europe/London"),
+    PricingLocation.HKG: zoneinfo.ZoneInfo("Asia/Hong_Kong"),
+    PricingLocation.TKO: zoneinfo.ZoneInfo("Asia/Tokyo"),
+}
 
 
 class PaymentFrequency(IntEnum):
@@ -32,6 +41,7 @@ class PaymentFrequency(IntEnum):
     Provides an enumeration of different payment frequencies used to to discount cashflows and accrue interest
 
     """
+
     DAILY = 252
     WEEKLY = 52
     SEMI_MONTHLY = 26
@@ -70,8 +80,9 @@ class DayCountConvention(Enum):
     ONE_ONE = "ONE_ONE"
 
 
-def is_business_day(dates: DateOrDates, calendars: Union[str, Tuple[str, ...]] = (), week_mask: Optional[str] = None)\
-        -> Union[bool, Tuple[bool]]:
+def is_business_day(
+    dates: DateOrDates, calendars: Union[str, tuple[str, ...]] = (), week_mask: Optional[str] = None
+) -> Union[bool, tuple[bool, ...]]:
     """
     Determine whether each date in dates is a business day
 
@@ -92,9 +103,12 @@ def is_business_day(dates: DateOrDates, calendars: Union[str, Tuple[str, ...]] =
 
 
 def business_day_offset(
-        dates: DateOrDates, offsets: Union[int, Iterable[int]],
-        roll: str = 'raise', calendars: Union[str, Tuple[str, ...]] = (),
-        week_mask: Optional[str] = None) -> DateOrDates:
+    dates: DateOrDates,
+    offsets: Union[int, Iterable[int]],
+    roll: str = 'raise',
+    calendars: Union[str, tuple[str, ...]] = (),
+    week_mask: Optional[str] = None,
+) -> DateOrDates:
     """
     Apply offsets to the dates and move to the nearest business date
 
@@ -116,9 +130,8 @@ def business_day_offset(
 
 
 def prev_business_date(
-        dates: DateOrDates = dt.date.today(),
-        calendars: Union[str, Tuple[str, ...]] = (),
-        week_mask: Optional[str] = None) -> DateOrDates:
+    dates: DateOrDates = dt.date.today(), calendars: Union[str, tuple[str, ...]] = (), week_mask: Optional[str] = None
+) -> DateOrDates:
     """
     Returns the previous business date for a given date or date series, defaulting to today.
 
@@ -135,8 +148,12 @@ def prev_business_date(
     return business_day_offset(dates, -1, roll='forward', calendars=calendars, week_mask=week_mask)
 
 
-def business_day_count(begin_dates: DateOrDates, end_dates: DateOrDates, calendars: Union[str, Tuple[str, ...]] = (
-), week_mask: Optional[str] = None) -> Union[int, Tuple[int]]:
+def business_day_count(
+    begin_dates: DateOrDates,
+    end_dates: DateOrDates,
+    calendars: Union[str, tuple[str, ...]] = (),
+    week_mask: Optional[str] = None,
+) -> Union[int, tuple[int, ...]]:
     """
     Determine the number of business days between begin_dates and end_dates
 
@@ -157,10 +174,12 @@ def business_day_count(begin_dates: DateOrDates, end_dates: DateOrDates, calenda
     return tuple(res) if isinstance(res, np.ndarray) else res
 
 
-def date_range(begin: Union[int, dt.date],
-               end: Union[int, dt.date],
-               calendars: Union[str, Tuple[str, ...]] = (),
-               week_mask: Optional[str] = None) -> Iterable[dt.date]:
+def date_range(
+    begin: Union[int, dt.date],
+    end: Union[int, dt.date],
+    calendars: Union[str, tuple[str, ...]] = (),
+    week_mask: Optional[str] = None,
+) -> Iterable[dt.date]:
     """
     Construct a range of dates
 
@@ -181,6 +200,7 @@ def date_range(begin: Union[int, dt.date],
     """
     if isinstance(begin, dt.date):
         if isinstance(end, dt.date):
+
             def f():
                 prev = begin
                 if prev > end:
@@ -197,8 +217,10 @@ def date_range(begin: Union[int, dt.date],
             raise ValueError('end must be a date or int')
     elif isinstance(begin, int):
         if isinstance(end, dt.date):
-            return (business_day_offset(end, -i, roll='preceding', calendars=calendars, week_mask=week_mask)
-                    for i in range(begin))
+            return (
+                business_day_offset(end, -i, roll='preceding', calendars=calendars, week_mask=week_mask)
+                for i in range(begin)
+            )
         else:
             raise ValueError('end must be a date if begin is an int')
     else:
@@ -209,18 +231,63 @@ def today(location: Optional[PricingLocation] = None) -> dt.date:
     if not location:
         return dt.date.today()
 
-    if location == PricingLocation.LDN:
-        tz = 'Europe/London'
-    elif location == PricingLocation.NYC:
-        tz = 'America/New_York'
-    elif location == PricingLocation.HKG:
-        tz = 'Asia/Hong_Kong'
-    elif location == PricingLocation.TKO:
-        tz = 'Asia/Tokyo'
-    else:
+    tz = location_to_tz_mapping.get(location, None)
+
+    if tz is None:
         raise ValueError(f'Unrecognized timezone {location}')
 
-    return dt.datetime.now(timezone(tz)).date()
+    return dt.datetime.now(tz).date()
+
+
+def humanize_time_delta(delta: dt.timedelta) -> str:
+    """
+    Render a ``timedelta`` as a short human-readable relative-time phrase.
+
+    Positive deltas are rendered as ``"<phrase> ago"`` and negative deltas
+    (i.e. times in the future) as ``"in <phrase>"``.
+
+    :param delta: The time delta to render (typically ``now - some_timestamp``).
+    :return: A human-readable phrase such as ``"a few seconds ago"``,
+        ``"19 minutes ago"``, ``"1 day ago"`` or ``"in 3 hours"``.
+
+    **Examples**
+
+    >>> import datetime as dt
+    >>> humanize_time_delta(dt.timedelta(seconds=5))
+    'a few seconds ago'
+    >>> humanize_time_delta(dt.timedelta(minutes=19))
+    '19 minutes ago'
+    >>> humanize_time_delta(dt.timedelta(days=-1))
+    'in a day'
+    """
+    seconds = int(delta.total_seconds())
+    future = seconds < 0
+    seconds = abs(seconds)
+    if seconds < 10:
+        phrase = "a few seconds"
+    elif seconds < 60:
+        phrase = f"{seconds} seconds"
+    elif seconds < 120:
+        phrase = "a minute"
+    elif seconds < 3600:
+        phrase = f"{seconds // 60} minutes"
+    elif seconds < 7200:
+        phrase = "an hour"
+    elif seconds < 86400:
+        phrase = f"{seconds // 3600} hours"
+    elif seconds < 172800:
+        phrase = "a day"
+    elif seconds < 2592000:
+        phrase = f"{seconds // 86400} days"
+    elif seconds < 5184000:
+        phrase = "a month"
+    elif seconds < 31536000:
+        phrase = f"{seconds // 2592000} months"
+    elif seconds < 63072000:
+        phrase = "a year"
+    else:
+        phrase = f"{seconds // 31536000} years"
+    return f"in {phrase}" if future else f"{phrase} ago"
 
 
 def has_feb_29(start: dt.date, end: dt.date):
@@ -252,10 +319,10 @@ def has_feb_29(start: dt.date, end: dt.date):
 
 
 def day_count_fraction(
-        start: dt.date,         # First payment date
-        end: dt.date,           # Second payment date
-        convention: DayCountConvention = DayCountConvention.ACTUAL_360,
-        frequency: PaymentFrequency = PaymentFrequency.MONTHLY
+    start: dt.date,  # First payment date
+    end: dt.date,  # Second payment date
+    convention: DayCountConvention = DayCountConvention.ACTUAL_360,
+    frequency: PaymentFrequency = PaymentFrequency.MONTHLY,
 ):
     """
     Compute day count fraction between dates

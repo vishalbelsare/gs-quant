@@ -13,13 +13,13 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
+
 import logging
 from enum import Enum
-from typing import Dict, List
 from urllib.parse import urlencode
 
+from gs_quant.common import Currency
 from gs_quant.session import GsSession
-from gs_quant.target.common import Currency
 
 _logger = logging.getLogger(__name__)
 
@@ -28,6 +28,7 @@ class CarbonCard(Enum):
     """
     Carbon Cards
     """
+
     COVERAGE = 'coverage'
     SBTI_AND_NET_ZERO_TARGETS = 'sbtiAndNetZeroTargets'
     EMISSIONS = 'emissions'
@@ -44,6 +45,7 @@ class CarbonCoverageCategory(Enum):
     """
     Carbon Coverage Category
     """
+
     WEIGHTS = 'weights'
     NUMBER_OF_COMPANIES = 'numberOfCompanies'
 
@@ -55,6 +57,7 @@ class CarbonTargetCoverageCategory(Enum):
     """
     Carbon Targets Coverage Category
     """
+
     CAPITAL_ALLOCATED = 'capitalAllocated'
     PORTFOLIO_EMISSIONS = 'portfolioEmissions'
 
@@ -66,6 +69,7 @@ class CarbonScope(Enum):
     """
     Carbon Scopes
     """
+
     TOTAL_GHG = 'totalGHG'
     SCOPE1 = 'scope1'
     SCOPE2 = 'scope2'
@@ -78,6 +82,7 @@ class CarbonEmissionsAllocationCategory(Enum):
     """
     Carbon Emissions Allocation Category
     """
+
     GICS_SECTOR = 'gicsSector'
     GICS_INDUSTRY = 'gicsIndustry'
     REGION = 'region'
@@ -90,6 +95,7 @@ class CarbonEmissionsIntensityType(Enum):
     """
     Carbon Emissions Intensity Type
     """
+
     EI_ENTERPRISE_VALUE = 'emissionsIntensityEnterpriseValue'
     EI_REVENUE = 'emissionsIntensityRevenue'
     EI_MARKETCAP = 'emissionsIntensityMarketCap'
@@ -102,6 +108,7 @@ class CarbonEntityType(Enum):
     """
     Carbon analytics at portfolio or benchmark
     """
+
     PORTFOLIO = 'portfolio'
     BENCHMARK = 'benchmark'
 
@@ -113,6 +120,7 @@ class CarbonAnalyticsView(Enum):
     """
     Carbon analytics at Long or Short component of
     """
+
     LONG = 'Long'
     SHORT = 'Short'
 
@@ -124,27 +132,37 @@ class GsCarbonApi:
     """GS Carbon API client implementation"""
 
     @classmethod
-    def get_carbon_analytics(cls,
-                             entity_id: str,
-                             benchmark_id: str = None,
-                             reporting_year: str = 'Latest',
-                             currency: Currency = None,
-                             include_estimates: bool = False,
-                             use_historical_data: bool = False,
-                             normalize_emissions: bool = False,
-                             cards: List[CarbonCard] = [],
-                             analytics_view: CarbonAnalyticsView = CarbonAnalyticsView.LONG) -> Dict:
+    def get_carbon_analytics(
+        cls,
+        entity_id: str,
+        benchmark_id: str = None,
+        reporting_year: str = 'Latest',
+        currency: Currency = None,
+        include_estimates: bool = False,
+        use_historical_data: bool = False,
+        normalize_emissions: bool = False,
+        cards: list[CarbonCard] = [],
+        analytics_view: CarbonAnalyticsView = CarbonAnalyticsView.LONG,
+    ) -> dict:
         url = f'/carbon/{entity_id}?'
         url += urlencode(
-            dict(filter(lambda item: item[1] is not None,
-                        dict(benchmark=benchmark_id,
-                             reportingYear=reporting_year,
-                             currency=currency.value if currency is not None else None,
-                             includeEstimates=str(include_estimates).lower(),
-                             useHistoricalData=str(use_historical_data).lower(),
-                             normalizeEmissions=str(normalize_emissions).lower(),
-                             card=[c for c in CarbonCard] if len(cards) == 0 else cards,
-                             analyticsView=analytics_view.value).items())), True)
+            dict(
+                filter(
+                    lambda item: item[1] is not None,
+                    dict(
+                        benchmark=benchmark_id,
+                        reportingYear=reporting_year,
+                        currency=currency.value if currency is not None else None,
+                        includeEstimates=str(include_estimates).lower(),
+                        useHistoricalData=str(use_historical_data).lower(),
+                        normalizeEmissions=str(normalize_emissions).lower(),
+                        card=[c for c in CarbonCard] if len(cards) == 0 else cards,
+                        analyticsView=analytics_view.value,
+                    ).items(),
+                )
+            ),
+            True,
+        )
 
         # TODO: Add scope as API parameter
-        return GsSession.current._get(url)
+        return GsSession.current.sync.get(url)

@@ -13,18 +13,26 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
+
 import datetime as dt
 import re
-from typing import Mapping, Optional, Tuple, Union
+from typing import Mapping, Optional, Union
 
 from gs_quant.base import Market, RiskKey
-from gs_quant.common import PricingLocation
-from gs_quant.datetime.date import prev_business_date
-from gs_quant.target.common import CloseMarket as _CloseMarket, LiveMarket as _LiveMarket, \
-    OverlayMarket as _OverlayMarket, RelativeMarket as _RelativeMarket, TimestampedMarket as _TimestampedMarket, \
-    RefMarket as _RefMarket
-from gs_quant.target.data import MarketDataCoordinate as __MarketDataCoordinate, \
-    MarketDataCoordinateValue as __MarketDataCoordinateValue
+from gs_quant.common import (
+    CloseMarket as _CloseMarket,
+    LiveMarket as _LiveMarket,
+    OverlayMarket as _OverlayMarket,
+    PricingLocation,
+    RefMarket as _RefMarket,
+    RelativeMarket as _RelativeMarket,
+    TimestampedMarket as _TimestampedMarket,
+)
+from gs_quant.datetime.date import location_to_tz_mapping, prev_business_date
+from gs_quant.target.data import (
+    MarketDataCoordinate as __MarketDataCoordinate,
+    MarketDataCoordinateValue as __MarketDataCoordinateValue,
+)
 
 
 def historical_risk_key(risk_key: RiskKey) -> RiskKey:
@@ -40,6 +48,7 @@ def market_location(location: Optional[PricingLocation] = None) -> PricingLocati
     :return: PricingLocation
     """
     from .core import PricingContext
+
     default = PricingContext.current.market_data_location
 
     if location is None:
@@ -48,19 +57,32 @@ def market_location(location: Optional[PricingLocation] = None) -> PricingLocati
         return location
 
 
-def close_market_date(_location: Optional[Union[PricingLocation, str]] = None,
-                      date: Optional[dt.date] = None) -> dt.date:
+def close_market_date(
+    location: Optional[Union[PricingLocation, str]] = None,
+    date: Optional[dt.date] = None,
+    roll_hr_and_min: tuple[int, int] = (24, 0),
+) -> dt.date:
     """Determine market data date based on current location (to infer calendar)
     and current pricing date
 
-    :param _location: location (deprecated)
+    :param location: date location, used for the roll timezone
     :param date: pricing date
+    :param roll_hr_and_min: tuple of the hour and minute of the expected market data availability time
+    in the location timezone
     :return: close market date
     """
     from .core import PricingContext
+
     date = date or PricingContext.current.pricing_date
 
-    if date >= dt.date.today():
+    location_tz = location_to_tz_mapping[PricingLocation(location)]
+    now_time = dt.datetime.now().astimezone(location_tz).replace(tzinfo=None)
+    hr_offset = roll_hr_and_min[0]
+    min_offset = roll_hr_and_min[1]
+    roll_time = dt.datetime(date.year, date.month, date.day).replace(tzinfo=None) + dt.timedelta(
+        hours=hr_offset, minutes=min_offset
+    )
+    if now_time < roll_time:
         # Don't use the calendars argument here as external users do not (yet) have access to that dataset
         date = prev_business_date(date)
 
@@ -68,7 +90,6 @@ def close_market_date(_location: Optional[Union[PricingLocation, str]] = None,
 
 
 class MarketDataCoordinate(__MarketDataCoordinate):
-
     def __repr__(self):
         ret = "_".join(f or '' for f in (self.mkt_type, self.mkt_asset, self.mkt_class))
 
@@ -83,6 +104,7 @@ class MarketDataCoordinate(__MarketDataCoordinate):
     @classmethod
     def from_string(cls, value: str):
         from gs_quant.api.gs.data import GsDataApi
+
         ret = GsDataApi._coordinate_from_str(value)
         if len(ret.mkt_point) == 1:
             # Unfortunately _,; have all been used as delimiters in various places
@@ -92,20 +114,19 @@ class MarketDataCoordinate(__MarketDataCoordinate):
 
 
 class MarketDataCoordinateValue(__MarketDataCoordinateValue):
-
     def __repr__(self):
         return f'{self.coordinate} --> {self.value}'
 
 
-Coordinates = Tuple[MarketDataCoordinate, ...]
+Coordinates = tuple[MarketDataCoordinate, ...]
 MarketDataMap = Mapping[MarketDataCoordinate, float]
 
 
 class LocationOnlyMarket(Market):
-
     def __init__(self, location: Optional[Union[str, PricingLocation]]):
-        self.__location = location if isinstance(location, PricingLocation) or location is None else \
-            PricingLocation(location)
+        self.__location = (
+            location if isinstance(location, PricingLocation) or location is None else PricingLocation(location)
+        )
 
     @property
     def market(self):
@@ -120,15 +141,20 @@ class CloseMarket(Market):
     """Market Object which captures market data based on market_location
     and close_market_date
     """
-    __date_cache = {}
 
-    def __init__(self,
-                 date: Optional[dt.date] = None,
-                 location: Optional[Union[str, PricingLocation]] = None,
-                 check: Optional[bool] = True):
+    __date_cache = {}
+    roll_hr_and_min = (24, 0)  # tuple of today's expected hr/min of market data availability in the location tz
+
+    def __init__(
+        self,
+        date: Optional[dt.date] = None,
+        location: Optional[Union[str, PricingLocation]] = None,
+        check: Optional[bool] = True,
+    ):
         self.__date = date
-        self.__location = location if isinstance(location, PricingLocation) or location is None else \
-            PricingLocation(location)
+        self.__location = (
+            location if isinstance(location, PricingLocation) or location is None else PricingLocation(location)
+        )
         self.check = check
 
     def __repr__(self):
@@ -137,6 +163,15 @@ class CloseMarket(Market):
     @property
     def market(self):
         return _CloseMarket(date=self.date, location=self.location)
+
+    def to_dict(self):
+        return {'date': self.date, 'location': self.location, 'marketType': 'CloseMarket'}
+
+    def __hash__(self):
+        return hash((self.date, self.location))
+
+    def __eq__(self, other):
+        return isinstance(other, CloseMarket) and self.date == other.date and self.location == other.location
 
     @property
     def location(self) -> PricingLocation:
@@ -150,7 +185,7 @@ class CloseMarket(Market):
         if self.__date is not None and not self.check:
             return self.__date
         else:
-            return close_market_date(self.location, self.__date)
+            return close_market_date(self.location, self.__date, self.roll_hr_and_min)
 
 
 class TimestampedMarket(Market):
@@ -158,17 +193,24 @@ class TimestampedMarket(Market):
     and timestamp
     """
 
-    def __init__(self, timestamp: dt.datetime, location: Optional[Union[str, PricingLocation]] = None):
+    def __init__(
+        self,
+        timestamp: dt.datetime,
+        location: Optional[Union[str, PricingLocation]] = None,
+        base_date: Optional[dt.date] = None,
+    ):
         self.__timestamp = timestamp
-        self.__location = location if isinstance(location, PricingLocation) or location is None else \
-            PricingLocation(location)
+        self.__location = (
+            location if isinstance(location, PricingLocation) or location is None else PricingLocation(location)
+        )
+        self.__base_date = base_date
 
     def __repr__(self):
         return f'{self.__timestamp} ({self.location.value})'
 
     @property
     def market(self):
-        return _TimestampedMarket(timestamp=self.__timestamp, location=self.location)
+        return _TimestampedMarket(timestamp=self.__timestamp, location=self.location, base_date=self.__base_date)
 
     @property
     def location(self) -> PricingLocation:
@@ -181,8 +223,9 @@ class LiveMarket(Market):
     """
 
     def __init__(self, location: Optional[Union[str, PricingLocation]] = None):
-        self.__location = location if isinstance(location, PricingLocation) or location is None else \
-            PricingLocation(location)
+        self.__location = (
+            location if isinstance(location, PricingLocation) or location is None else PricingLocation(location)
+        )
 
     def __repr__(self):
         return f'Live ({self.location.value})'
@@ -201,8 +244,12 @@ class OverlayMarket(Market):
     TimestampedMarket) with a MarketDataMap (a map of market coordinate to float)
     """
 
-    def __init__(self, market_data: Optional[MarketDataMap] = None, base_market: Optional[Market] = None,
-                 binary_mkt_data: Optional[str] = None):
+    def __init__(
+        self,
+        market_data: Optional[MarketDataMap] = None,
+        base_market: Optional[Market] = None,
+        binary_mkt_data: Optional[str] = None,
+    ):
         market_data = market_data or {}
 
         self.__base_market = base_market or CloseMarket()
@@ -229,7 +276,7 @@ class OverlayMarket(Market):
         return f'Overlay ({id(self)}): {repr(self.__base_market)}'
 
     @property
-    def market_data(self) -> Tuple[MarketDataCoordinateValue, ...]:
+    def market_data(self) -> tuple[MarketDataCoordinateValue, ...]:
         return tuple(MarketDataCoordinateValue(coordinate=c, value=v) for c, v in self.__market_data.items())
 
     @property
@@ -246,8 +293,11 @@ class OverlayMarket(Market):
 
     @property
     def market(self):
-        return _OverlayMarket(base_market=self.__base_market.market, market_data=self.market_data,
-                              market_model_data=self.market_model_data)
+        return _OverlayMarket(
+            base_market=self.__base_market.market,
+            market_data=self.market_data,
+            market_model_data=self.market_model_data,
+        )
 
     @property
     def coordinates(self) -> Coordinates:
@@ -259,8 +309,7 @@ class OverlayMarket(Market):
 
 
 class RefMarket(Market):
-    """Market Object which represents a Reference to a Market
-    """
+    """Market Object which represents a Reference to a Market"""
 
     def __init__(self, market_ref: str):
         self.__market = _RefMarket(market_ref=str(market_ref))

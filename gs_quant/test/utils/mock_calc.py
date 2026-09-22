@@ -13,14 +13,14 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
-import datetime
-import hashlib
+
+import datetime as dt
 import inspect
 from pathlib import Path
 
 from gs_quant.api.gs.risk import GsRiskApi
+from gs_quant.common import CompositeScenario
 from gs_quant.datetime import business_day_offset
-from gs_quant.target.common import CompositeScenario
 from gs_quant.test.utils.mock_request import MockRequest
 
 
@@ -42,8 +42,9 @@ def get_risk_request_id(requests):
         identifier += '-'.join([pos.instrument.name for pos in request.positions])
         identifier += '-'.join([r.__repr__() for r in request.measures])
         date = request.pricing_and_market_data_as_of[0].pricing_date.strftime('%Y%b%d')
-        today = business_day_offset(datetime.date.today(), 0, roll='preceding').strftime('%Y%b%d')
-        identifier += 'today' if date == today else date
+        today_pre = business_day_offset(dt.date.today(), 0, roll='preceding').strftime('%Y%b%d')
+        today_post = business_day_offset(dt.date.today(), 0, roll='following').strftime('%Y%b%d')
+        identifier += 'today' if date in (today_post, today_pre) else date
         if request.scenario is not None:
             if isinstance(request.scenario.scenario, CompositeScenario):
                 underlying_scenarios = request.scenario.scenario.scenarios
@@ -54,7 +55,7 @@ def get_risk_request_id(requests):
                 if request.scenario.scenario.name is None:
                     raise RuntimeError('Please provide unique names for your scenarios for testing')
                 identifier += request.scenario.scenario.name
-    return hashlib.md5(identifier.encode('utf-8')).hexdigest()
+    return identifier
 
 
 class MockCalc(MockRequest):
@@ -64,9 +65,15 @@ class MockCalc(MockRequest):
 
     def __init__(self, mocker, save_files=False, paths=None, application='gs-quant'):
         super().__init__(mocker, save_files, paths, application)
-        self.paths = paths if paths else \
-            Path(next(filter(lambda x: x.code_context and self.__class__.__name__ in x.code_context[0],
-                             inspect.stack())).filename).parents[1]
+        self.paths = (
+            paths
+            if paths
+            else Path(
+                next(
+                    filter(lambda x: x.code_context and self.__class__.__name__ in x.code_context[0], inspect.stack())
+                ).filename
+            ).parents[1]
+        )
 
     def mock_calc_create_files(self, *args, **kwargs):
         import orjson
@@ -83,11 +90,11 @@ class MockCalc(MockRequest):
             return this_json
 
         result = get_json(*args, **kwargs)
-        result_json = orjson.dumps(result,
-                                   option=orjson.OPT_SERIALIZE_NUMPY | orjson.OPT_NON_STR_KEYS | orjson.OPT_SORT_KEYS)
+        result_json = orjson.dumps(
+            result, option=orjson.OPT_SERIALIZE_NUMPY | orjson.OPT_NON_STR_KEYS | orjson.OPT_SORT_KEYS
+        )
         request_id = self.get_request_id(args, kwargs)
         self.create_files(request_id, result_json)
-
         return result
 
     def get_request_id(self, args, kwargs):

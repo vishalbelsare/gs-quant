@@ -17,8 +17,8 @@ under the License.
 import json
 import pathlib
 
+from gs_quant.common import Currency
 from gs_quant.markets.securities import Stock
-from gs_quant.target.common import Currency
 
 
 def _read_entity(entity):
@@ -28,7 +28,4 @@ def _read_entity(entity):
 
 def get_test_entity(entity_id: str):
     entity = _read_entity(entity_id)
-    return Stock(id_=entity_id,
-                 name=entity['name'],
-                 currency=Currency.USD,
-                 entity=entity)
+    return Stock(id_=entity_id, name=entity['name'], currency=Currency.USD, entity=entity)

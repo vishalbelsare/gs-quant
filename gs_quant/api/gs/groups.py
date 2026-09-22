@@ -14,26 +14,26 @@ specific language governing permissions and limitations
 under the License.
 """
 
-from typing import List, Dict
-
 from gs_quant.session import GsSession
 from gs_quant.target.groups import Group
 
 
 class GsGroupsApi:
     @classmethod
-    def get_groups(cls,
-                   ids: List[str] = None,
-                   names: List[str] = None,
-                   oe_ids: List[str] = None,
-                   owner_ids: List[str] = None,
-                   tags: List[str] = None,
-                   user_ids: List[str] = None,
-                   scroll_id: str = None,
-                   scroll_time: str = None,
-                   limit: int = 100,
-                   offset: int = 0,
-                   order_by: str = None) -> List:
+    def get_groups(
+        cls,
+        ids: list[str] = None,
+        names: list[str] = None,
+        oe_ids: list[str] = None,
+        owner_ids: list[str] = None,
+        tags: list[str] = None,
+        user_ids: list[str] = None,
+        scroll_id: str = None,
+        scroll_time: str = None,
+        limit: int = 100,
+        offset: int = 0,
+        order_by: str = None,
+    ) -> list:
         url = f'/groups?limit={limit}&offset={offset}'
         if ids:
             url += f'&id={"&id=".join(ids)}'
@@ -53,46 +53,61 @@ class GsGroupsApi:
             url += f'&scrollTime={scroll_time}'
         if order_by:
             url += f'&orderBy={order_by}'
-        return GsSession.current._get(url, cls=Group)['results']
+        return GsSession.current.sync.get(url, cls=Group)['results']
 
     @classmethod
-    def create_group(cls, group: Group) -> Dict:
-        return GsSession.current._post('/groups', group, cls=Group)
+    def create_group(cls, group: Group) -> dict:
+        return GsSession.current.sync.post('/groups', group, cls=Group)
 
     @classmethod
-    def get_group(cls,
-                  group_id: str) -> Group:
-        return GsSession.current._get(f'/groups/{group_id}', cls=Group)
+    def get_group(cls, group_id: str) -> Group:
+        return GsSession.current.sync.get(f'/groups/{group_id}', cls=Group)
 
     @classmethod
-    def update_group(cls,
-                     group_id: str,
-                     group: Group) -> Group:
+    def update_group(cls, group_id: str, group: Group) -> Group:
         # PUT request for updating a group can't have the group ID in it
-        group_dict = group.to_json()
-        if group_dict.get('entitlements'):
-            group_dict['entitlements'] = group_dict['entitlements'].to_json()
-        group_dict.pop('id')
-        return GsSession.current._put(f'/groups/{group_id}', group_dict, cls=Group)
+        group_dict = group.to_dict()
+        for key in ('id', 'lastUpdatedById', 'createdById'):
+            group_dict.pop(key, None)
+        return GsSession.current.sync.put(f'/groups/{group_id}', group_dict, cls=Group)
 
     @classmethod
-    def delete_group(cls,
-                     group_id: str):
-        GsSession.current._delete(f'/groups/{group_id}')
+    def delete_group(cls, group_id: str):
+        GsSession.current.sync.delete(f'/groups/{group_id}')
 
     @classmethod
-    def get_users_in_group(cls,
-                           group_id: str) -> List:
-        return GsSession.current._get(f'/groups/{group_id}/users').get('users', [])
+    def get_users_in_group(
+        cls,
+        group_id: str,
+        fields: list[str] = None,
+        limit: int = None,
+        offset: int = None,
+        order_by: list[str] = None,
+        show_members_count: bool = None,
+        scroll_id: str = None,
+        scroll_time: str = None,
+    ) -> list:
+        url = f'/groups/{group_id}/users?'
+        if fields:
+            url += f'&fields={"&fields=".join(fields)}'
+        if limit is not None:
+            url += f'&limit={limit}'
+        if offset is not None:
+            url += f'&offset={offset}'
+        if order_by:
+            url += f'&orderBy={"&orderBy=".join(order_by)}'
+        if show_members_count is not None:
+            url += f'&showMembersCount={str(show_members_count).lower()}'
+        if scroll_id:
+            url += f'&scrollId={scroll_id}'
+        if scroll_time:
+            url += f'&scrollTime={scroll_time}'
+        return GsSession.current.sync.get(url).get('users', [])
 
     @classmethod
-    def add_users_to_group(cls,
-                           group_id: str,
-                           user_ids: List[str]):
-        GsSession.current._post(f'/groups/{group_id}/users', {'userIds': user_ids})
+    def add_users_to_group(cls, group_id: str, user_ids: list[str]):
+        GsSession.current.sync.post(f'/groups/{group_id}/users', {'userIds': user_ids})
 
     @classmethod
-    def delete_users_from_group(cls,
-                                group_id: str,
-                                user_ids: List[str]):
-        GsSession.current._delete(f'/groups/{group_id}/users', {'userIds': user_ids}, use_body=True)
+    def delete_users_from_group(cls, group_id: str, user_ids: list[str]):
+        GsSession.current.sync.delete(f'/groups/{group_id}/users', {'userIds': user_ids}, use_body=True)

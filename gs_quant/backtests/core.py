@@ -14,13 +14,12 @@ specific language governing permissions and limitations
 under the License.
 """
 
+import datetime as dt
 from enum import Enum
-from typing import Tuple, NamedTuple, Union
-import datetime
-from gs_quant.base import EnumBase
-from gs_quant.target.backtests import Backtest as __Backtest, BacktestResult, FlowVolBacktestMeasure
-from typing import Optional
+from typing import NamedTuple, Optional, Union
 
+from gs_quant.base import EnumBase
+from gs_quant.target.backtests import Backtest as __Backtest, BacktestResult
 
 # TODO add these in Studio as a standalone JSON, so they will be generated
 
@@ -30,9 +29,9 @@ class TradeInMethod(EnumBase, Enum):
 
 
 class Backtest(__Backtest):
-
-    def get_results(self) -> Tuple[BacktestResult, ...]:
+    def get_results(self) -> tuple[BacktestResult, ...]:
         from gs_quant.api.gs.backtests import GsBacktestApi
+
         return GsBacktestApi.get_results(backtest_id=self.id)
 
 
@@ -42,8 +41,8 @@ class MarketModel(EnumBase, Enum):
 
 
 class TimeWindow(NamedTuple):
-    start: Union[datetime.time, datetime.datetime] = None
-    end: Union[datetime.time, datetime.datetime] = None
+    start: Union[dt.time, dt.datetime] = None
+    end: Union[dt.time, dt.datetime] = None
 
 
 class ValuationFixingType(EnumBase, Enum):

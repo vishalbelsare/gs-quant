@@ -13,29 +13,43 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
-import datetime
+
+import datetime as dt
 from enum import IntEnum
-from unittest.mock import Mock
+from unittest import mock
+from unittest.mock import MagicMock, Mock
 
 import pandas as pd
 import pytest
-from pandas.testing import assert_frame_equal
 from testfixtures import Replace, Replacer
 
 import gs_quant.timeseries as ts
 from gs_quant.data import DataContext, Dataset
 from gs_quant.errors import MqError, MqRequestError
-from unittest.mock import MagicMock
 from gs_quant.session import GsSession
 from gs_quant.test.api.test_thread_manager import NullContextManager
-from gs_quant.timeseries.helper import _create_int_enum, _tenor_to_month, _month_to_tenor, plot_function, \
-    plot_measure, plot_method, normalize_window, Window, apply_ramp, check_forward_looking, get_df_with_retries, \
-    get_dataset_data_with_retries, _split_where_conditions
+from gs_quant.timeseries.helper import (
+    Window,
+    _create_int_enum,
+    _month_to_tenor,
+    _split_where_conditions,
+    _tenor_to_month,
+    apply_ramp,
+    check_forward_looking,
+    get_dataset_data_with_retries,
+    get_dataset_with_many_assets,
+    get_df_with_retries,
+    normalize_window,
+    plot_function,
+    plot_measure,
+    plot_method,
+)
 
 # TODO test the instance of IntEnum when we have any.
 
-WeekDay = _create_int_enum('WeekDay', {'SUNDAY': 1, 'Monday': 2, 'TUESDAY': 3,
-                                       'WEDNESDAY': 4, 'THURSDAY': 5, 'Friday': 6, 'SATURDAY': 7})
+WeekDay = _create_int_enum(
+    'WeekDay', {'SUNDAY': 1, 'Monday': 2, 'TUESDAY': 3, 'WEDNESDAY': 4, 'THURSDAY': 5, 'Friday': 6, 'SATURDAY': 7}
+)
 
 
 def test_int_enum():
@@ -64,6 +78,35 @@ def test_tenor_to_month():
 def test_month_to_tenor():
     assert _month_to_tenor(36) == '3y'
     assert _month_to_tenor(18) == '18m'
+
+
+def test_get_dataset_with_many_assets():
+    # Mock the Dataset object
+    mock_dataset = Mock(spec=Dataset)
+
+    def foo(**kwargs) -> pd.DataFrame:
+        return pd.DataFrame({"assetId": list(kwargs["assetId"]), "column2": [0] * len(kwargs["assetId"])})
+
+    mock_dataset.get_data = foo
+
+    # Test parameters
+    assets = [f'Asset{i}' for i in range(150)]
+    start = dt.date(2023, 1, 1)
+    end = dt.date(2023, 1, 31)
+
+    # Call the function and inspect the result
+    with (
+        mock.patch("gs_quant.api.utils.DataContext", MagicMock(spec=DataContext)) as mock_data_context,
+        mock.patch("gs_quant.api.utils.GsSession", MagicMock(spec=GsSession)) as mock_gs_session,
+    ):
+        mock_data_context.current = mock_data_context
+        mock_gs_session.current = mock_gs_session
+
+        result = get_dataset_with_many_assets(ds=mock_dataset, assets=assets, start=start, end=end, batch_limit=100)
+
+    # Assertions
+    assert len(result) == 150
+    assert result['assetId'].tolist() == assets
 
 
 @plot_function
@@ -183,7 +226,7 @@ def test_apply_ramp_with_window_greater_than_series_length():
 
 
 def test_apply_ramp_dateoffset():
-    x = pd.Series(range(10), index=pd.bdate_range('2020-02-17', freq='b', periods=10))
+    x = pd.Series(range(10), index=pd.bdate_range('2020-02-17', freq='B', periods=10))
     y = apply_ramp(x, Window(pd.DateOffset(weeks=1), pd.DateOffset(days=1)))
     assert len(y) == 9
 
@@ -204,8 +247,8 @@ def test_apply_ramp_raises_on_edge_cases():
 
 
 def test_get_df_with_retries():
-    start = datetime.date(2020, 12, 1)
-    end = datetime.date(2020, 12, 2)
+    start = dt.date(2020, 12, 1)
+    end = dt.date(2020, 12, 2)
     counter = 0
 
     def fetch0():
@@ -219,7 +262,7 @@ def test_get_df_with_retries():
         return pd.DataFrame()
 
     def mock_apply(self, *_args, **_kwargs):
-        return self.base_date - datetime.timedelta(days=1)
+        return self.base_date - dt.timedelta(days=1)
 
     with Replace('gs_quant.timeseries.helper.RelativeDate.apply_rule', mock_apply):
         df = get_df_with_retries(fetch0, start, end, 'NYSE')
@@ -233,16 +276,16 @@ def test_get_df_with_retries():
 
 
 def test_forward_looking():
-    today = datetime.date.today()
+    today = dt.date.today()
     source = 'plottool'
-    with DataContext(today, today + datetime.timedelta(days=1)):
+    with DataContext(today, today + dt.timedelta(days=1)):
         assert check_forward_looking('1b', None) is None
         assert check_forward_looking(today, None) is None
         assert check_forward_looking(None, None) is None
         assert check_forward_looking('1b', source) is None
         assert check_forward_looking(today, source) is None
         assert check_forward_looking(None, source) is None
-    with DataContext(today - datetime.timedelta(days=1), today):
+    with DataContext(today - dt.timedelta(days=1), today):
         assert check_forward_looking('1b', None) is None
         assert check_forward_looking(today, None) is None
         assert check_forward_looking(None, None) is None
@@ -257,32 +300,25 @@ def test_get_dataset_data_with_retries():
     GsSession.current = MagicMock(return_calue=NullContextManager())
     mock = replace('gs_quant.data.dataset.Dataset.get_data', Mock())
     mock.side_effect = [
-        MqRequestError(400, message='Number of rows returned by your query is more than maximum allowed'),
-        pd.DataFrame(),
-        pd.DataFrame()
+        MqRequestError(400, message='Some other error'),
+        MqRequestError(400, message='Some other error'),
+        MqRequestError(400, message='Some other error'),
     ]
-
     dataset = Dataset(Dataset.TR.TREOD)
-    data = get_dataset_data_with_retries(dataset, start=datetime.date(2000, 1, 2), end=datetime.date(2019, 1, 9),
-                                         assetId='MA4B66MW5E27U8P32SB')
-
-    assert_frame_equal(data, pd.DataFrame())
-
-    mock.side_effect = [
-        MqRequestError(400, message='Some other error')
-    ]
-
     with pytest.raises(MqRequestError):
-        get_dataset_data_with_retries(dataset, start=datetime.date(2000, 1, 2), end=datetime.date(2019, 1, 9),
-                                      assetId='MA4B66MW5E27U8P32SB')
+        get_dataset_data_with_retries(
+            dataset, start=dt.date(2000, 1, 2), end=dt.date(2019, 1, 9), assetId='MA4B66MW5E27U8P32SB', max_retries=0
+        )
 
     replace.restore()
 
 
 def test_split_where_conditions():
     where = dict(tenor=['1m', '2m'], strikeReference='delta_call', relativeStrike=25)
-    expected = [dict(tenor=['1m'], strikeReference='delta_call', relativeStrike=25),
-                dict(tenor=['2m'], strikeReference='delta_call', relativeStrike=25)]
+    expected = [
+        dict(tenor=['1m'], strikeReference='delta_call', relativeStrike=25),
+        dict(tenor=['2m'], strikeReference='delta_call', relativeStrike=25),
+    ]
     actual = _split_where_conditions(where)
     assert actual == expected
 
@@ -297,14 +333,36 @@ def test_split_where_conditions():
     assert actual == expected
 
     where = dict(tenor=['1m', '2m'], strikeReference='delta_call', relativeStrike=[25, 50])
-    expected = [dict(tenor=['1m'], strikeReference='delta_call', relativeStrike=[25]),
-                dict(tenor=['1m'], strikeReference='delta_call', relativeStrike=[50]),
-                dict(tenor=['2m'], strikeReference='delta_call', relativeStrike=[25]),
-                dict(tenor=['2m'], strikeReference='delta_call', relativeStrike=[50])
-                ]
+    expected = [
+        dict(tenor=['1m'], strikeReference='delta_call', relativeStrike=[25]),
+        dict(tenor=['1m'], strikeReference='delta_call', relativeStrike=[50]),
+        dict(tenor=['2m'], strikeReference='delta_call', relativeStrike=[25]),
+        dict(tenor=['2m'], strikeReference='delta_call', relativeStrike=[50]),
+    ]
     actual = _split_where_conditions(where)
     assert actual == expected
 
 
 if __name__ == "__main__":
     pytest.main(args=["test_helper.py"])
+
+
+def test_get_dataset_data_with_retries_recursive_split():
+    dataset = Mock()
+    dataset.get_data = Mock(
+        side_effect=[
+            MqRequestError(400, message="Some error occurred"),
+            pd.DataFrame({"data": [1, 2]}),
+            pd.DataFrame({"data": [3, 4]}),
+        ]
+    )
+
+    start = dt.date(2023, 1, 1)
+    end = dt.date(2023, 1, 10)
+
+    result = get_dataset_data_with_retries(dataset, start=start, end=end, max_retries=2)
+
+    # Verify the recursive splitting logic
+    assert not result.empty
+    assert len(result) == 4
+    dataset.get_data.assert_called()

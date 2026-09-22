@@ -17,7 +17,6 @@ under the License.
 from base64 import b64decode
 from collections import OrderedDict
 from enum import Enum
-from typing import List, Tuple
 from urllib.parse import quote
 
 from gs_quant.session import GsSession
@@ -28,6 +27,7 @@ class OrderBy(Enum):
     """
     Content ordering
     """
+
     ASC = 'asc'
     DESC = 'desc'
 
@@ -40,15 +40,15 @@ class GsContentApi:
 
     @classmethod
     def get_contents(
-            cls,
-            channels: set = None,
-            asset_ids: set = None,
-            author_ids: set = None,
-            tags: set = None,
-            offset: int = 0,
-            limit: int = 10,
-            order_by: dict = {'direction': OrderBy.DESC, 'field': 'createdTime'}
-    ) -> List[ContentResponse]:
+        cls,
+        channels: set = None,
+        asset_ids: set = None,
+        author_ids: set = None,
+        tags: set = None,
+        offset: int = 0,
+        limit: int = 10,
+        order_by: dict = {'direction': OrderBy.DESC, 'field': 'createdTime'},
+    ) -> list[ContentResponse]:
         """
         Get contents for given parameters
 
@@ -83,14 +83,15 @@ class GsContentApi:
             tag=tags,
             offset=[offset] if offset else None,
             limit=[limit] if limit else None,
-            order_by=[order_by] if order_by else None)
+            order_by=[order_by] if order_by else None,
+        )
 
         query_string = '' if not parameters_dict else cls._build_query_string(parameters_dict)
-        contents = GsSession.current._get(f'/content{query_string}', cls=GetManyContentsResponse)
+        contents = GsSession.current.sync.get(f'/content{query_string}', cls=GetManyContentsResponse)
         return contents.data
 
     @staticmethod
-    def get_text(contents: List[ContentResponse]) -> List[Tuple[str, str]]:
+    def get_text(contents: list[ContentResponse]) -> list[tuple[str, str]]:
         """
         Get text for contents
 
@@ -135,9 +136,11 @@ class GsContentApi:
 
         # Builds a list of tuples for easy iteration like:
         # [('channel', 'channel-1'), ('channel', 'channel-2'), ('assetId', 'asset-1'), ...]
-        parameter_tuples = [(parameter_name, parameter_value)
-                            for parameter_name, parameter_values in parameters.items()
-                            for parameter_value in parameter_values]
+        parameter_tuples = [
+            (parameter_name, parameter_value)
+            for parameter_name, parameter_values in parameters.items()
+            for parameter_value in parameter_values
+        ]
 
         for index, parameter_tuple in enumerate(parameter_tuples):
             name, value = parameter_tuple

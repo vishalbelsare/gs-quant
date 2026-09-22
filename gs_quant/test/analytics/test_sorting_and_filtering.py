@@ -18,9 +18,9 @@ import numpy as np
 import pytest
 
 from gs_quant.analytics.core.processor_result import ProcessorResult
-from gs_quant.analytics.datagrid import DataGrid, DataColumn
+from gs_quant.analytics.datagrid import DataColumn, DataGrid
 from gs_quant.analytics.datagrid.data_cell import DataCell
-from gs_quant.analytics.datagrid.utils import SortOrder, DataGridSort, DataGridFilter, FilterOperation, FilterCondition
+from gs_quant.analytics.datagrid.utils import DataGridFilter, DataGridSort, FilterCondition, FilterOperation, SortOrder
 from gs_quant.test.utils.datagrid_test_utils import get_test_entity
 
 
@@ -133,6 +133,7 @@ class TestSortingAndFiltering:
         datagrid = self.get_test_datagrid()
         datagrid.add_filter(DataGridFilter('Value', FilterOperation.GREATER_THAN, 0))
         datagrid.add_filter(DataGridFilter('Value', FilterOperation.LESS_THAN, 0, FilterCondition.OR))
+        datagrid.sorts = [DataGridSort('Value', order=SortOrder.DESCENDING)]  # Filtering can give different order
         df = datagrid._post_process()
         assert df['Name'].iloc[0] == spx.name
         assert df['Value'].iloc[0] == 10

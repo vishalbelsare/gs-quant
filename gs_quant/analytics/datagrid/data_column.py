@@ -13,8 +13,10 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
-from dataclasses import dataclass, asdict, fields, field
-from typing import Dict, List, Union
+
+from dataclasses import asdict, dataclass, field, fields
+from typing import Union
+
 from gs_quant.analytics.core.processor import BaseProcessor
 
 DEFAULT_WIDTH = 100
@@ -34,6 +36,7 @@ class HeatMapColorRange:
     """
     Dataclass for HeatMap color ranges. All values must be in hex format. Example: '#ffffff' for white.
     """
+
     low: str
     mid: str
     high: str
@@ -57,16 +60,14 @@ class MultiColumnGroup:
     :param heatMapColorRange (HeatMapColorRange): Optional HeatMapColorRange which allows you to specify a color theme
     for your grouped heatmap columns
     """
+
     id: Union[int, str] = 0
-    columnIndices: List[int] = field(default_factory=list)
+    columnIndices: list[int] = field(default_factory=list)
     groupAll: bool = False
     heatMapColorRange: HeatMapColorRange = None
 
     def asdict(self):
-        obj = {
-            'id': self.id,
-            'columnIndices': self.columnIndices
-        }
+        obj = {'id': self.id, 'columnIndices': self.columnIndices}
         if self.groupAll:
             obj['groupAll'] = True
         if self.heatMapColorRange:
@@ -81,18 +82,20 @@ class MultiColumnGroup:
             id=dict_.get('id'),
             groupAll=dict_.get('groupAll', False),
             columnIndices=dict_.get('columnIndices'),
-            heatMapColorRange=HeatMapColorRange.from_dict(heat_map_color_range) if heat_map_color_range else None
+            heatMapColorRange=HeatMapColorRange.from_dict(heat_map_color_range) if heat_map_color_range else None,
         )
 
 
 class ColumnFormat:
-    def __init__(self,
-                 *,
-                 renderType: RenderType = RenderType.DEFAULT,
-                 precision: int = 2,
-                 humanReadable: bool = True,
-                 tooltip: str = None,
-                 displayValues: bool = True):
+    def __init__(
+        self,
+        *,
+        renderType: RenderType = RenderType.DEFAULT,
+        precision: int = 2,
+        humanReadable: bool = True,
+        tooltip: str = None,
+        displayValues: bool = True,
+    ):
         """
         Use this class to specify the format options for your column.
         :param renderType: Type to use when rendering the column.
@@ -101,7 +104,7 @@ class ColumnFormat:
         :param tooltip: Helper text to use as tooltip for the column.
         :param displayValues: For graphical render types only. True will show numerical values and title in the column.
          else only the graphics will be displayed.
-         """
+        """
         self.renderType = renderType
         self.precision = precision
         self.humanReadable = humanReadable
@@ -130,20 +133,22 @@ class ColumnFormat:
             precision=obj.get('precision'),
             humanReadable=obj.get('humanReadable'),
             tooltip=obj.get('tooltip'),
-            displayValues=obj.get('displayValues')
+            displayValues=obj.get('displayValues'),
         )
 
 
 class DataColumn:
     """Base class for grid column"""
 
-    def __init__(self,
-                 name: str,
-                 processor: BaseProcessor = None,
-                 *,
-                 format_: ColumnFormat = ColumnFormat(),
-                 width: int = DEFAULT_WIDTH):
-        """ DataColumn
+    def __init__(
+        self,
+        name: str,
+        processor: BaseProcessor = None,
+        *,
+        format_: ColumnFormat = ColumnFormat(),
+        width: int = DEFAULT_WIDTH,
+    ):
+        """DataColumn
 
         :param name: Name of the column
         :param processor: Processor to apply to the column for calculation
@@ -158,11 +163,7 @@ class DataColumn:
     def as_dict(self):
         format_ = self.format_.as_dict()
 
-        column = {
-            'name': self.name,
-            'format': format_,
-            'width': self.width
-        }
+        column = {'name': self.name, 'format': format_, 'width': self.width}
 
         processor = self.processor
         if processor:
@@ -172,10 +173,12 @@ class DataColumn:
         return column
 
     @classmethod
-    def from_dict(cls, obj: Dict, reference_list: List):
+    def from_dict(cls, obj: dict, reference_list: list):
         processor = BaseProcessor.from_dict(obj, reference_list)
 
-        return DataColumn(name=obj['name'],
-                          processor=processor,
-                          format_=ColumnFormat.from_dict(obj.get('format', {})),
-                          width=obj.get('width', DEFAULT_WIDTH))
+        return DataColumn(
+            name=obj['name'],
+            processor=processor,
+            format_=ColumnFormat.from_dict(obj.get('format', {})),
+            width=obj.get('width', DEFAULT_WIDTH),
+        )

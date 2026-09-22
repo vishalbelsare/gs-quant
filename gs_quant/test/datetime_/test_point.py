@@ -14,7 +14,9 @@ specific language governing permissions and limitations
 under the License.
 """
 
-from gs_quant.datetime import *
+import datetime as dt
+
+from gs_quant.datetime import point_sort_order
 
 
 def test_point_sort_order():
@@ -38,7 +40,7 @@ def test_point_sort_order():
         '1 Week GC': 7,  # RepoGCReg
         '1 week': 7,  # RelativeReg
         '01Jan20': 365,  # DDMMMYYReg
-        '20Y;3M': 7300.0012328767125
+        '20Y;3M': 7300.0012328767125,
     }
 
     for input, expected in check_map.items():

@@ -14,14 +14,30 @@ specific language governing permissions and limitations
 under the License.
 """
 
+import backoff
+
+from gs_quant.errors import MqInternalServerError, MqRateLimitedError, MqTimeoutError
 from gs_quant.session import GsSession
-from gs_quant.target.price import *
+from gs_quant.target.positions_v2_pricing import PositionsPricingRequest
+from gs_quant.target.price import PositionSetPriceInput, PositionSetPriceResponse
 
 
 class GsPriceApi:
     """GS Price API client implementation"""
 
     @classmethod
+    @backoff.on_exception(lambda: backoff.expo(base=2, factor=2), (MqTimeoutError, MqInternalServerError), max_tries=5)
+    @backoff.on_exception(lambda: backoff.constant(60), MqRateLimitedError, max_tries=5)
     def price_positions(cls, inputs: PositionSetPriceInput) -> PositionSetPriceResponse:
         url = '/price/positions'
-        return GsSession.current._post(url, payload=inputs, cls=PositionSetPriceResponse)
+        return GsSession.current.sync.post(url, payload=inputs, cls=PositionSetPriceResponse)
+
+    @classmethod
+    def price_many_positions(cls, pricing_request: PositionsPricingRequest) -> dict:
+        url = '/positions/price/bulk'
+        GsSession.current.api_version = "v2"
+        try:
+            pricing_response = GsSession.current.sync.post(url, payload=pricing_request)
+            return pricing_response.get("positions")
+        finally:
+            GsSession.current.api_version = "v1"

@@ -13,10 +13,10 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
+
 import datetime as dt
 import logging
 from enum import Enum
-from typing import List, Dict
 
 from gs_quant.session import GsSession
 
@@ -27,6 +27,7 @@ class ESGCard(Enum):
     """
     ESG Cards
     """
+
     SUMMARY = 'summary'
     QUINTILES = 'quintiles'
     WEIGHTS_BY_SECTOR = 'weightsBySector'
@@ -46,6 +47,7 @@ class ESGMeasure(Enum):
     """
     ESG Measures
     """
+
     G_PERCENTILE = 'gPercentile'
     G_REGIONAL_PERCENTILE = 'gRegionalPercentile'
     ES_PERCENTILE = 'esPercentile'
@@ -60,12 +62,14 @@ class GsEsgApi:
     """GS ESG API client implementation"""
 
     @classmethod
-    def get_esg(cls,
-                entity_id: str,
-                benchmark_id: str = None,
-                pricing_date: dt.date = None,
-                measures: List[ESGMeasure] = [],
-                cards: List[ESGCard] = []) -> Dict:
+    def get_esg(
+        cls,
+        entity_id: str,
+        benchmark_id: str = None,
+        pricing_date: dt.date = None,
+        measures: list[ESGMeasure] = [],
+        cards: list[ESGCard] = [],
+    ) -> dict:
         url = f'/esg/{entity_id}?'
         if pricing_date:
             url += f'&date={pricing_date.strftime("%Y-%m-%d")}'
@@ -76,4 +80,4 @@ class GsEsgApi:
         for card in cards:
             url += f'&card={card}'
 
-        return GsSession.current._get(url)
+        return GsSession.current.sync.get(url)

@@ -13,10 +13,12 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
+
 import copy
 import inspect
 import pickle
 import sys
+import types
 
 from gs_quant.base import Base
 from gs_quant.common import Currency
@@ -26,7 +28,11 @@ def classes(module_name) -> list:
     module_path = 'gs_quant.target.' + module_name
     __import__(module_path)
     module = sys.modules[module_path]
-    return [m for n, m in inspect.getmembers(module) if inspect.isclass(m) and issubclass(m, Base) and m is not Base]
+    return [
+        m
+        for n, m in inspect.getmembers(module)
+        if not isinstance(m, types.GenericAlias) and inspect.isclass(m) and issubclass(m, Base) and m is not Base
+    ]
 
 
 def test_enum():
@@ -38,9 +44,25 @@ def test_enum():
 
 
 def test_classes():
-    for module_name in ('assets', 'backtests', 'charts', 'common', 'content', 'coordinates', 'countries', 'data',
-                        'hedge', 'indices', 'instrument', 'monitor', 'portfolios', 'reports', 'risk', 'trades',
-                        'workspaces_markets'):
+    for module_name in (
+        'assets',
+        'backtests',
+        'charts',
+        'common',
+        'content',
+        'coordinates',
+        'countries',
+        'data',
+        'hedge',
+        'indices',
+        'instrument',
+        'monitor',
+        'portfolios',
+        'reports',
+        'risk',
+        'trades',
+        'workspaces_markets',
+    ):
         for typ in classes(module_name):
             if typ.__module__ != module_name:
                 continue

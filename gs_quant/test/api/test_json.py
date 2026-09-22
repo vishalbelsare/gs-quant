@@ -16,25 +16,32 @@ under the License.
 
 import datetime as dt
 import json
+import zoneinfo
 
-import pytz
-
+from gs_quant.json_convertors import decode_frequency, decode_iso_date_or_datetime, encode_frequency
 from gs_quant.json_encoder import JSONEncoder
-from gs_quant.target.workflow_quote import BinaryImageComments, ImgType, Encoding, HyperLinkImageComments, \
-    VisualStructuringReport, ChartingParameters, OverlayType
+from gs_quant.workflow import (
+    BinaryImageComments,
+    ChartingParameters,
+    Encoding,
+    HyperLinkImageComments,
+    ImgType,
+    OverlayType,
+    VisualStructuringReport,
+)
 
 
 def test_datetime_serialisation():
     dates = [
         dt.datetime(2021, 8, 10, 10, 39, 19),
         dt.datetime(2021, 8, 10, 10, 39, 19, 59876),
-        dt.datetime(2021, 8, 10, 10, 39, 19, tzinfo=pytz.timezone('EST')),
-        dt.datetime(2021, 8, 10, 10, 39, 19, tzinfo=pytz.timezone('UTC')),
+        dt.datetime(2021, 8, 10, 10, 39, 19, tzinfo=zoneinfo.ZoneInfo("America/New_York")),
+        dt.datetime(2021, 8, 10, 10, 39, 19, tzinfo=zoneinfo.ZoneInfo('UTC')),
     ]
     expected = [
         '"2021-08-10T10:39:19.000Z"',
         '"2021-08-10T10:39:19.059Z"',
-        '"2021-08-10T10:39:19.000-05:00"',
+        '"2021-08-10T10:39:19.000-04:00"',
         '"2021-08-10T10:39:19.000+00:00"',
     ]
     for d, e in zip(dates, expected):
@@ -42,13 +49,58 @@ def test_datetime_serialisation():
         assert encoded == e
 
 
+def test_date_or_datetime():
+    d1 = dt.date(2023, 4, 11)
+    d2 = dt.date(2024, 12, 25)
+    dt1 = dt.datetime(2023, 4, 11, 6, 19, 18, 59876)
+    dt2 = dt.datetime(2024, 12, 25, 10, 39, 19, 59876)
+    # Single date
+    assert d1 == decode_iso_date_or_datetime(d1.isoformat())
+    # list of dates
+    assert (d1, d2) == decode_iso_date_or_datetime([d1.isoformat(), d2.isoformat()])
+    # Single datetime
+    assert dt1 == decode_iso_date_or_datetime(dt1.isoformat())
+    # list of datetimes
+    assert (dt1, dt2) == decode_iso_date_or_datetime([dt1.isoformat(), dt2.isoformat()])
+    # Mixed
+    assert (dt1, d2) == decode_iso_date_or_datetime([dt1.isoformat(), d2.isoformat()])
+
+
+def test_time():
+    t = dt.time(10, 14, 59, 59876)
+    json_time = json.dumps(t, cls=JSONEncoder)
+    assert json_time == '"10:14:59.059"'
+
+
 def test_custom_comments():
     bc = BinaryImageComments(data='blah', img_type=ImgType.JPEG, encoding=Encoding.Base64)
     hc = HyperLinkImageComments(url='blah')
-    report = VisualStructuringReport(comments=(bc, hc),
-                                     charting_parameters=ChartingParameters(overlay=OverlayType.Vega,
-                                                                            underlay=OverlayType.ProbabilityDistribution
-                                                                            ))
+    report = VisualStructuringReport(
+        comments=(bc, hc),
+        charting_parameters=ChartingParameters(overlay=OverlayType.Vega, underlay=OverlayType.ProbabilityDistribution),
+    )
     json_str = report.to_json()
     round_trip = VisualStructuringReport.from_json(json_str)
     assert round_trip == report
+
+
+def test_decode_frequency():
+    assert decode_frequency(None) is None
+    # Strings are treated as frequency/tenor and passed through (e.g. '15m' means 15 months, not minutes)
+    assert decode_frequency('10m') == '10m'
+    assert decode_frequency('1h30m') == '1h30m'
+    assert decode_frequency('1b') == '1b'
+    # Numeric values (and numeric strings) are seconds
+    assert decode_frequency(600) == dt.timedelta(seconds=600)
+    assert decode_frequency('600') == dt.timedelta(seconds=600)
+    assert decode_frequency('invalid') == 'invalid'
+
+
+def test_encode_frequency():
+    assert encode_frequency(None) is None
+    # Strings are passed through
+    assert encode_frequency('10m') == '10m'
+    # Timedeltas encode to seconds to avoid ambiguity
+    assert encode_frequency(dt.timedelta(minutes=10)) == 600
+    assert encode_frequency(dt.timedelta(hours=1, minutes=30)) == 5400
+    assert encode_frequency(dt.timedelta(days=1, seconds=1)) == 86401

@@ -13,7 +13,6 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
-from typing import Tuple
 
 from gs_quant.session import GsSession
 from gs_quant.target.countries import Country, Subdivision
@@ -23,43 +22,55 @@ class GsCountryApi:
     """GS Country API client implementation"""
 
     @classmethod
-    def get_many_countries(cls, limit: int = 100) -> Tuple[Country, ...]:
-        return GsSession.current._get('/countries?limit={limit}'.format(limit=limit), cls=Country)['results']
+    def get_many_countries(cls, limit: int = 100) -> tuple[Country, ...]:
+        return GsSession.current.sync.get('/countries?limit={limit}'.format(limit=limit), cls=Country)['results']
+
+    @classmethod
+    async def get_many_countries_async(cls, limit: int = 100) -> tuple[Country, ...]:
+        response = await GsSession.current.async_.get('/countries', payload={"limit": limit}, cls=Country)
+        return response.get("results")
 
     @classmethod
     def get_country(cls, country_id: str) -> Country:
-        return GsSession.current._get('/countries/{id}'.format(id=country_id), cls=Country)
+        return GsSession.current.sync.get('/countries/{id}'.format(id=country_id), cls=Country)
+
+    @classmethod
+    async def get_country_async(cls, country_id: str) -> Country:
+        response = await GsSession.current.async_.get(f'/countries/{country_id}', cls=Country)
+        return response
 
     @classmethod
     def create_country(cls, country: Country) -> Country:
-        return GsSession.current._post('/countries', country, cls=Country)
+        return GsSession.current.sync.post('/countries', country, cls=Country)
 
     @classmethod
     def update_country(cls, country: Country):
-        return GsSession.current._put('/countries/{id}'.format(id=country.id), country, cls=Country)
+        return GsSession.current.sync.put('/countries/{id}'.format(id=country.id), country, cls=Country)
 
     @classmethod
     def delete_country(cls, country_id: str) -> dict:
-        return GsSession.current._delete('/countries/{id}'.format(id=country_id))
+        return GsSession.current.sync.delete('/countries/{id}'.format(id=country_id))
 
     @classmethod
-    def get_many_subdivisions(cls, limit: int = 100) -> Tuple[Subdivision, ...]:
-        return GsSession.current._get('/countries/subdivisions?limit={limit}'.format(limit=limit),
-                                      cls=Subdivision)['results']
+    def get_many_subdivisions(cls, limit: int = 100) -> tuple[Subdivision, ...]:
+        return GsSession.current.sync.get('/countries/subdivisions?limit={limit}'.format(limit=limit), cls=Subdivision)[
+            'results'
+        ]
 
     @classmethod
     def get_subdivision(cls, subdivision_id: str) -> Subdivision:
-        return GsSession.current._get('/countries/subdivisions/{id}'.format(id=subdivision_id), cls=Subdivision)
+        return GsSession.current.sync.get('/countries/subdivisions/{id}'.format(id=subdivision_id), cls=Subdivision)
 
     @classmethod
     def create_subdivision(cls, subdivision: Subdivision) -> Subdivision:
-        return GsSession.current._post('/countries/subdivisions', subdivision, cls=Subdivision)
+        return GsSession.current.sync.post('/countries/subdivisions', subdivision, cls=Subdivision)
 
     @classmethod
     def update_subdivision(cls, subdivision: Subdivision):
-        return GsSession.current._put('/countries/subdivisions/{id}'.format(id=subdivision.id), subdivision,
-                                      cls=Subdivision)
+        return GsSession.current.sync.put(
+            '/countries/subdivisions/{id}'.format(id=subdivision.id), subdivision, cls=Subdivision
+        )
 
     @classmethod
     def delete_subdivision(cls, subdivision_id: str) -> dict:
-        return GsSession.current._delete('/countries/subdivisions/{id}'.format(id=subdivision_id))
+        return GsSession.current.sync.delete('/countries/subdivisions/{id}'.format(id=subdivision_id))

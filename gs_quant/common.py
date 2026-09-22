@@ -14,12 +14,15 @@ specific language governing permissions and limitations
 under the License.
 """
 
-import datetime as dt
+from gs_quant.target.common import *  # noqa
+from gs_quant.target.common import PayReceive as _PayReceive  # noqa
+from gs_quant.target.common import RiskMeasure as __RiskMeasure  # noqa
+from gs_quant.target.common import RiskMeasureType, AssetClass, RiskMeasureUnit  # noqa
+from gs_quant.base import EnumBase, RiskMeasureParameter  # noqa
 
-from gs_quant.target.common import *
-from gs_quant.target.common import PayReceive as _PayReceive
-from gs_quant.target.common import RiskMeasure as __RiskMeasure
-from gs_quant.target.common import RiskMeasureType, AssetClass
+from enum import Enum
+from typing import Union
+import datetime as dt
 
 
 class PositionType(Enum):
@@ -35,14 +38,12 @@ class PositionType(Enum):
 
 
 class DateLimit(Enum):
-    
-    """ Datetime date constants """
+    """Datetime date constants"""
 
     LOW_LIMIT = dt.date(1952, 1, 1)
 
 
 class PayReceive(EnumBase, Enum):
-
     """Pay or receive fixed"""
 
     Pay = 'Pay'
@@ -57,16 +58,7 @@ class PayReceive(EnumBase, Enum):
         return cls.Receive if key.lower() in ('receive', 'receiver') else super()._missing_(key)
 
 
-class MarketBehaviour(EnumBase, Enum):
-
-    """ContraintsBased or Calibrated"""
-
-    ContraintsBased = 'ContraintsBased'
-    Calibrated = 'Calibrated'
-
-
 class RiskMeasure(__RiskMeasure):
-
     def __lt__(self, other):
         if self.name != other.name:
             return self.name < other.name
@@ -76,7 +68,7 @@ class RiskMeasure(__RiskMeasure):
             if not isinstance(other.parameters, type(self.parameters)):
                 return self.parameters.parameter_type < other.parameters.parameter_type
             else:
-                return self.parameters < other.parameters
+                return repr(self.parameters) < repr(other.parameters)
         elif other.parameters is not None:
             return True
         return False
@@ -87,13 +79,20 @@ class RiskMeasure(__RiskMeasure):
     @property
     def pricing_context(self):
         from gs_quant.markets import PricingContext
+
         return PricingContext.current
 
 
 class ParameterisedRiskMeasure(RiskMeasure):
-    def __init__(self, asset_class: Union[AssetClass, str] = None,
-                 measure_type: Union[RiskMeasureType, str] = None, unit: Union[RiskMeasureUnit, str] = None,
-                 value: Union[float, str] = None, parameters: RiskMeasureParameter = None, name: str = None):
+    def __init__(
+        self,
+        asset_class: Union[AssetClass, str] = None,
+        measure_type: Union[RiskMeasureType, str] = None,
+        unit: Union[RiskMeasureUnit, str] = None,
+        value: Union[float, str] = None,
+        parameters: RiskMeasureParameter = None,
+        name: str = None,
+    ):
         super().__init__(asset_class=asset_class, measure_type=measure_type, unit=unit, value=value, name=name)
         if parameters:
             if isinstance(parameters, RiskMeasureParameter):
@@ -109,9 +108,9 @@ class ParameterisedRiskMeasure(RiskMeasure):
             params.pop('parameter_type', None)
             sorted_keys = sorted(params.keys(), key=lambda x: x.lower())
             params = ', '.join(
-                [f'{k}:{params[k].value if isinstance(params[k], EnumBase) else params[k]}' for k in sorted_keys])
+                [f'{k}:{params[k].value if isinstance(params[k], EnumBase) else params[k]}' for k in sorted_keys]
+            )
         return name + '(' + params + ')' if params else name
 
     def parameter_is_empty(self):
         return self.parameters is None
-

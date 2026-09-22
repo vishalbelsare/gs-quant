@@ -13,32 +13,37 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
+
 from typing import Mapping, Optional
 
-from pandas import DataFrame
+import pandas as pd
 
-from gs_quant.target.risk import MarketDataPattern, MarketDataShock, \
-    MarketDataPatternAndShock, MarketDataShockBasedScenario as __MarketDataShockBasedScenario, \
-    MarketDataVolShockScenario as __MarketDataVolShockScenario, MarketDataVolSlice, MarketDataShockType
+from gs_quant.target.risk import (
+    MarketDataPattern,
+    MarketDataPatternAndShock,
+    MarketDataShock,
+    MarketDataShockBasedScenario as __MarketDataShockBasedScenario,
+    MarketDataShockType,
+    MarketDataVolShockScenario as __MarketDataVolShockScenario,
+    MarketDataVolSlice,
+)
 
 
 class MarketDataShockBasedScenario(__MarketDataShockBasedScenario):
-
     def __init__(self, shocks: Mapping[MarketDataPattern, MarketDataShock], name: Optional[str] = None):
         super().__init__(tuple(MarketDataPatternAndShock(p, s) for p, s in shocks.items()), name=name)
 
 
 class MarketDataVolShockScenario(__MarketDataVolShockScenario):
-
     @classmethod
-    def from_dataframe(cls, asset_ric: str, df: DataFrame, ref_spot: float = None, name=None):
+    def from_dataframe(cls, asset_ric: str, df: pd.DataFrame, ref_spot: float = None, name=None):
         """
         Create a MarketDataVolShockScenario using an input DataFrame containing expiry dates, strikes and vol levels
         :param asset_ric: the RIC of the asset
         :param df: input data frame.  Expects a DataFrame indexed by date/time and containing columns expirationDate,
         absoluteStrike and impliedVolatility.
         :param ref_spot: the current reference spot level
-        :name: name
+        :param name: name
         :return: MarketDataVolShockScenario
         """
         last_datetime = max(list(df.index))
@@ -54,6 +59,7 @@ class MarketDataVolShockScenario(__MarketDataVolShockScenario):
             vol_slice = MarketDataVolSlice(key.date(), strikes, levels)
             vol_slices.append(vol_slice)
 
-        scenario = MarketDataVolShockScenario(MarketDataPattern('Eq Vol', asset_ric),
-                                              MarketDataShockType.Override, vol_slices, ref_spot, name=name)
+        scenario = MarketDataVolShockScenario(
+            MarketDataPattern('Eq Vol', asset_ric), MarketDataShockType.Override, vol_slices, ref_spot, name=name
+        )
         return scenario

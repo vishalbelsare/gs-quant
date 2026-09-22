@@ -7,204 +7,172 @@
 
    
    
+   .. rubric:: Methods
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   __init__
+   .. automethod:: __init__
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   delete
+   .. automethod:: delete
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   delete_factor_metadata
+   .. automethod:: delete_factor_metadata
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   from_many_targets
+   .. automethod:: from_many_targets
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   from_target
+   .. automethod:: from_target
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   get
+   .. automethod:: get
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   get_asset_universe
+   .. automethod:: get_asset_capitalization
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   get_calendar
+   .. automethod:: get_asset_contribution_to_risk
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   get_covariance_matrix
+   .. automethod:: get_asset_factor_attribution
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   get_data
+   .. automethod:: get_asset_price
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   get_dates
+   .. automethod:: get_asset_universe
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   get_factor
+   .. automethod:: get_bid_ask_spread
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   get_factor_data
+   .. automethod:: get_calendar
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   get_factor_portfolios
+   .. automethod:: get_composite_value
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   get_factor_returns_by_id
+   .. automethod:: get_composite_volume
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   get_factor_returns_by_name
+   .. automethod:: get_covariance_matrix
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   get_historical_beta
+   .. automethod:: get_currency
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   get_issuer_specific_covariance
+   .. automethod:: get_currency_exchange_rate
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   get_many
+   .. automethod:: get_daily_return
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   get_many_factors
+   .. automethod:: get_data
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   get_missing_dates
+   .. automethod:: get_dates
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   get_most_recent_date_from_calendar
+   .. automethod:: get_dividend_yield
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   get_residual_variance
+   .. automethod:: get_estimation_universe_weights
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   get_specific_risk
+   .. automethod:: get_factor
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   get_total_risk
+   .. automethod:: get_factor_data
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   get_universe_exposure
+   .. automethod:: get_factor_portfolios
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   get_universe_factor_exposure
+   .. automethod:: get_factor_returns_by_id
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   save
+   .. automethod:: get_factor_returns_by_name
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   save_factor_metadata
+   .. automethod:: get_factor_volatility
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   upload_asset_coverage_data
+   .. automethod:: get_global_predicted_beta
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   upload_calendar
+   .. automethod:: get_historical_beta
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   upload_data
+   .. automethod:: get_issuer_market_cap
    
    
-   .. autosummary::
-      :toctree: functions
-      :template: models_function.rst
-   upload_partial_data
+   .. automethod:: get_issuer_specific_covariance
+   
+   
+   .. automethod:: get_many
+   
+   
+   .. automethod:: get_many_factors
+   
+   
+   .. automethod:: get_missing_dates
+   
+   
+   .. automethod:: get_most_recent_date_from_calendar
+   
+   
+   .. automethod:: get_pre_vra_covariance_matrix
+   
+   
+   .. automethod:: get_predicted_beta
+   
+   
+   .. automethod:: get_risk_free_rate
+   
+   
+   .. automethod:: get_specific_return
+   
+   
+   .. automethod:: get_specific_risk
+   
+   
+   .. automethod:: get_total_risk
+   
+   
+   .. automethod:: get_traded_value
+   
+   
+   .. automethod:: get_trading_volume
+   
+   
+   .. automethod:: get_unadjusted_covariance_matrix
+   
+   
+   .. automethod:: get_unadjusted_specific_risk
+   
+   
+   .. automethod:: get_universe_exposure
+   
+   
+   .. automethod:: get_universe_factor_exposure
+   
+   
+   .. automethod:: save
+   
+   
+   .. automethod:: save_factor_metadata
+   
+   
+   .. automethod:: upload_asset_coverage_data
+   
+   
+   .. automethod:: upload_calendar
+   
+   
+   .. automethod:: upload_data
+   
+   
+   .. automethod:: upload_partial_data
    
    
    

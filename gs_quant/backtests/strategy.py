@@ -14,41 +14,53 @@ specific language governing permissions and limitations
 under the License.
 """
 
-from typing import Tuple
+from dataclasses import dataclass, field
+from typing import Iterable, Optional, Union
 
-from gs_quant.backtests.triggers import *
-from gs_quant.backtests.generic_engine import GenericEngine
-from gs_quant.backtests.predefined_asset_engine import PredefinedAssetEngine
-from gs_quant.backtests.equity_vol_engine import EquityVolEngine
+from dataclasses_json import config, dataclass_json
+
+from gs_quant.backtests.backtest_objects import CashAccrualModel
+from gs_quant.backtests.backtest_utils import make_list
+from gs_quant.backtests.triggers import Trigger
 from gs_quant.base import Priceable
+from gs_quant.json_convertors import dc_decode, decode_named_instrument, encode_named_instrument
 
 
-backtest_engines = [GenericEngine(), PredefinedAssetEngine(), EquityVolEngine()]
+def _backtest_engines():
+    from gs_quant.backtests.equity_vol_engine import EquityVolEngine
+    from gs_quant.backtests.generic_engine import GenericEngine
+    from gs_quant.backtests.predefined_asset_engine import PredefinedAssetEngine
+
+    return [GenericEngine(), PredefinedAssetEngine(), EquityVolEngine()]
 
 
-class Strategy(object):
+@dataclass_json
+@dataclass
+class Strategy:
     """
     A strategy object on which one may run a backtest
     """
 
-    def __init__(self, initial_portfolio: Optional[Tuple[Priceable, ...]], triggers: Union[Trigger, Iterable[Trigger]]):
-        self._initial_portfolio = make_list(initial_portfolio)
-        self._triggers = make_list(triggers)
+    initial_portfolio: Optional[Union[tuple[Priceable, ...], dict]] = field(
+        default=None, metadata=config(decoder=decode_named_instrument, encoder=encode_named_instrument)
+    )
+    triggers: Union[Trigger, Iterable[Trigger]] = field(
+        default=None, metadata=config(decoder=dc_decode(*Trigger.sub_classes(), allow_missing=True))
+    )
+    cash_accrual: CashAccrualModel = None
+    risks = None
 
-    @property
-    def triggers(self):
-        return self._triggers
+    def __post_init__(self):
+        if not isinstance(self.initial_portfolio, dict):
+            self.initial_portfolio = make_list(self.initial_portfolio)
+        self.triggers = make_list(self.triggers)
+        self.risks = self.get_risks()
 
-    @property
-    def initial_portfolio(self):
-        return self._initial_portfolio
-
-    @property
-    def risks(self):
+    def get_risks(self):
         risk_list = []
-        for t in self._triggers:
+        for t in self.triggers:
             risk_list += t.risks if t.risks is not None else []
         return risk_list
 
     def get_available_engines(self):
-        return [engine for engine in backtest_engines if engine.supports_strategy(self)]
+        return [engine for engine in _backtest_engines() if engine.supports_strategy(self)]

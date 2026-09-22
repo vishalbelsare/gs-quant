@@ -51,7 +51,10 @@ class ComponentType(EnumBase, Enum):
     stackedBarChart = 'stackedBarChart'
     treemap = 'treemap'
     video = 'video'
-    webinar = 'webinar'    
+    webinar = 'webinar'
+    marketviewWidget = 'marketviewWidget'
+    marketviewDashboard = 'marketviewDashboard'
+    signalDevops = 'signalDevops'    
 
 
 class WorkspaceType(EnumBase, Enum):    
@@ -98,8 +101,27 @@ class MarketComponentParameters(Base):
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
-class NotificationTokenBody(DictBase):
-    pass
+@handle_camel_case_args
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(unsafe_hash=True, repr=False)
+class MarketviewDashboardParameters(Base):
+    id_: str = field(default=None, metadata=config(field_name='id', exclude=exclude_none))
+    size: Optional[str] = field(default=None, metadata=field_metadata)
+    name: Optional[str] = field(default=None, metadata=name_metadata)
+
+
+@handle_camel_case_args
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(unsafe_hash=True, repr=False)
+class MarketviewWidgetParameters(Base):
+    id_: str = field(default=None, metadata=config(field_name='id', exclude=exclude_none))
+    configuration_id: Optional[str] = field(default=None, metadata=field_metadata)
+    height: Optional[str] = field(default=None, metadata=field_metadata)
+    width: Optional[str] = field(default=None, metadata=field_metadata)
+    name: Optional[str] = field(default=None, metadata=name_metadata)
+
+
+NotificationTokenBody = dict
 
 
 @handle_camel_case_args
@@ -122,6 +144,21 @@ class SeparatorComponentParameters(Base):
     name: Optional[str] = field(default=None, metadata=field_metadata)
     size: Optional[str] = field(default=None, metadata=field_metadata)
     show_more_url: Optional[str] = field(default=None, metadata=field_metadata)
+
+
+@handle_camel_case_args
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(unsafe_hash=True, repr=False)
+class SignalDevopsComponentParameters(Base):
+    height: Optional[float] = field(default=None, metadata=field_metadata)
+    pivot_endpoint: Optional[str] = field(default=None, metadata=field_metadata)
+    replay_endpoint_template: Optional[str] = field(default=None, metadata=field_metadata)
+    history_endpoint_template: Optional[str] = field(default=None, metadata=field_metadata)
+    refresh_interval_seconds: Optional[float] = field(default=None, metadata=field_metadata)
+    default_columns: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    rag_field: Optional[str] = field(default=None, metadata=field_metadata)
+    enable_replay: Optional[bool] = field(default=None, metadata=field_metadata)
+    name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
 @handle_camel_case_args
@@ -177,7 +214,7 @@ class WorkspaceTab(Base):
 class ArticleComponentParameters(Base):
     height: float = field(default=None, metadata=field_metadata)
     tooltip: Optional[str] = field(default=None, metadata=field_metadata)
-    commentary_channels: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    commentary_channels: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     commentary_to_desktop_link: Optional[bool] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
@@ -207,7 +244,7 @@ class BarChartComponentParameters(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class ChartComponentParameters(Base):
     height: float = field(default=None, metadata=field_metadata)
-    ids: Tuple[str, ...] = field(default=None, metadata=field_metadata)
+    ids: tuple[str, ...] = field(default=None, metadata=field_metadata)
     tooltip: Optional[str] = field(default=None, metadata=field_metadata)
     hide_legend: Optional[bool] = field(default=None, metadata=field_metadata)
     chart_name: Optional[str] = field(default=None, metadata=field_metadata)
@@ -220,7 +257,7 @@ class ChartComponentParameters(Base):
 class CommentaryComponentParameters(Base):
     height: float = field(default=None, metadata=field_metadata)
     tooltip: Optional[str] = field(default=None, metadata=field_metadata)
-    commentary_channels: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    commentary_channels: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     commentary_to_desktop_link: Optional[bool] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
@@ -231,7 +268,7 @@ class CommentaryComponentParameters(Base):
 class CommentaryPromoComponentParameters(Base):
     height: Optional[float] = field(default=None, metadata=field_metadata)
     tooltip: Optional[str] = field(default=None, metadata=field_metadata)
-    commentary_channels: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    commentary_channels: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     transparent: Optional[bool] = field(default=None, metadata=field_metadata)
     body: Optional[str] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
@@ -251,7 +288,7 @@ class DataGridComponentParameters(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class LegendComponentParameters(Base):
     height: float = field(default=None, metadata=field_metadata)
-    items: Tuple[LegendItem, ...] = field(default=None, metadata=field_metadata)
+    items: tuple[LegendItem, ...] = field(default=None, metadata=field_metadata)
     position: Optional[str] = field(default=None, metadata=field_metadata)
     transparent: Optional[bool] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
@@ -291,7 +328,7 @@ class PlotComponentParameters(Base):
 class ResearchComponentParameters(Base):
     height: float = field(default=None, metadata=field_metadata)
     tooltip: Optional[str] = field(default=None, metadata=field_metadata)
-    commentary_channels: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    commentary_channels: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     commentary_to_desktop_link: Optional[bool] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
@@ -311,7 +348,7 @@ class ScreenerComponentParameters(Base):
 class SelectorComponentOption(Base):
     id_: str = field(default=None, metadata=config(field_name='id', exclude=exclude_none))
     name: str = field(default=None, metadata=field_metadata)
-    tags: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    tags: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
 
 
 @handle_camel_case_args
@@ -334,10 +371,10 @@ class WebinarComponentParameters(Base):
     replay_url: str = field(default=None, metadata=field_metadata)
     title: str = field(default=None, metadata=field_metadata)
     height: Optional[float] = field(default=None, metadata=field_metadata)
-    hosts: Optional[Tuple[WebinarSpeaker, ...]] = field(default=None, metadata=field_metadata)
+    hosts: Optional[tuple[WebinarSpeaker, ...]] = field(default=None, metadata=field_metadata)
     password: Optional[str] = field(default=None, metadata=field_metadata)
     series: Optional[str] = field(default=None, metadata=field_metadata)
-    speakers: Optional[Tuple[WebinarSpeaker, ...]] = field(default=None, metadata=field_metadata)
+    speakers: Optional[tuple[WebinarSpeaker, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -357,9 +394,9 @@ class RelatedLink(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class SelectorComponentParameters(Base):
     height: float = field(default=None, metadata=field_metadata)
-    container_ids: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    container_ids: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     default_option_index: Optional[float] = field(default=None, metadata=field_metadata)
-    options: Optional[Tuple[SelectorComponentOption, ...]] = field(default=None, metadata=field_metadata)
+    options: Optional[tuple[SelectorComponentOption, ...]] = field(default=None, metadata=field_metadata)
     title: Optional[str] = field(default=None, metadata=field_metadata)
     tooltip: Optional[str] = field(default=None, metadata=field_metadata)
     width: Optional[float] = field(default=None, metadata=field_metadata)
@@ -372,7 +409,7 @@ class SelectorComponentParameters(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class RelatedLinksComponentParameters(Base):
     height: float = field(default=None, metadata=field_metadata)
-    links: Tuple[RelatedLink, ...] = field(default=None, metadata=field_metadata)
+    links: tuple[RelatedLink, ...] = field(default=None, metadata=field_metadata)
     title: str = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
@@ -381,7 +418,7 @@ class RelatedLinksComponentParameters(Base):
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
 class WorkspaceCallToAction(Base):
-    actions: Tuple[RelatedLink, ...] = field(default=None, metadata=field_metadata)
+    actions: tuple[RelatedLink, ...] = field(default=None, metadata=field_metadata)
     text: str = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
@@ -393,10 +430,10 @@ class WorkspaceComponent(Base):
     id_: str = field(default=None, metadata=config(field_name='id', exclude=exclude_none))
     type_: ComponentType = field(default=None, metadata=config(field_name='type', exclude=exclude_none))
     hide: Optional[bool] = field(default=None, metadata=field_metadata)
-    tags: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    selections: Optional[Tuple[ComponentSelection, ...]] = field(default=None, metadata=field_metadata)
-    container_ids: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    parameters: Optional[DictBase] = field(default=None, metadata=field_metadata)
+    tags: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    selections: Optional[tuple[ComponentSelection, ...]] = field(default=None, metadata=field_metadata)
+    container_ids: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    parameters: Optional[Union[ArticleComponentParameters, AssetPlotComponentParameters, BarChartComponentParameters, ChartComponentParameters, CommentaryComponentParameters, CommentaryPromoComponentParameters, ContainerComponentParameters, DataGridComponentParameters, LegendComponentParameters, MarketComponentParameters, MarketviewDashboardParameters, MarketviewWidgetParameters, MonitorComponentParameters, PlotComponentParameters, PromoComponentParameters, RelatedLinksComponentParameters, ResearchComponentParameters, ScreenerComponentParameters, SelectorComponentParameters, SeparatorComponentParameters, SignalDevopsComponentParameters, TreemapComponentParameters, VideoComponentParameters, WebinarComponentParameters]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -405,13 +442,14 @@ class WorkspaceComponent(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class WorkspaceParameters(Base):
     layout: str = field(default=None, metadata=field_metadata)
-    components: Tuple[WorkspaceComponent, ...] = field(default=None, metadata=field_metadata)
+    components: tuple[WorkspaceComponent, ...] = field(default=None, metadata=field_metadata)
     call_to_action: Optional[WorkspaceCallToAction] = field(default=None, metadata=field_metadata)
     can_share: Optional[bool] = field(default=None, metadata=field_metadata)
     date: Optional[WorkspaceDate] = field(default=None, metadata=field_metadata)
     disclaimer: Optional[str] = field(default=None, metadata=field_metadata)
-    maintainers: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    tabs: Optional[Tuple[WorkspaceTab, ...]] = field(default=None, metadata=field_metadata)
+    maintainers: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    parent_collection_id: Optional[str] = field(default=None, metadata=field_metadata)
+    tabs: Optional[tuple[WorkspaceTab, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -424,7 +462,7 @@ class Workspace(Base):
     alias: Optional[str] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=field_metadata)
     type_: Optional[WorkspaceType] = field(default=None, metadata=config(field_name='type', exclude=exclude_none))
-    tags: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    tags: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     created_time: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
     last_updated_time: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
     created_by_id: Optional[str] = field(default=None, metadata=field_metadata)
@@ -433,4 +471,4 @@ class Workspace(Base):
     entitlements: Optional[Entitlements] = field(default=None, metadata=field_metadata)
     folder_name: Optional[str] = field(default=None, metadata=field_metadata)
     description: Optional[str] = field(default=None, metadata=field_metadata)
-    children_aliases: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    children_aliases: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)

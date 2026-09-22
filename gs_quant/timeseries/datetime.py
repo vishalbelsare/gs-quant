@@ -14,18 +14,27 @@
 # Chart Service will attempt to make public functions (not prefixed with _) from this module available. Such functions
 # should be fully documented: docstrings should describe parameters and the return value, and provide a 1-line
 # description. Type annotations should be provided for parameters.
-from datetime import date, time, timedelta
+import datetime as dt
 from enum import Enum
 from numbers import Real
 from typing import Any, Union
 
 import numpy as np
+import pandas as pd
 
-from .helper import *
-from .helper import _create_enum
-from ..datetime.date import DayCountConvention, PaymentFrequency, day_count_fraction
-from ..datetime.date import date_range as _date_range
-from ..errors import MqValueError, MqTypeError
+from ..datetime import GsCalendar
+from ..datetime.date import DayCountConvention, PaymentFrequency, date_range as _date_range, day_count_fraction
+from ..errors import MqTypeError, MqValueError
+from .helper import (
+    FREQ_DAY,
+    FREQ_MONTH_END,
+    FREQ_QUARTER_END,
+    FREQ_YEAR_END,
+    Interpolate,
+    _create_enum,
+    plot_function,
+    requires_session,
+)
 
 """
 Date and time manipulation for timeseries, including date or time shifting, calendar operations, curve alignment and
@@ -33,10 +42,9 @@ interpolation operations. Includes sampling operations based on daif dates[0]te 
 """
 
 AggregateFunction: Union[Union[type, Enum], Any] = _create_enum(
-    'AggregateFunction',
-    ['max', 'min', 'mean', 'sum', 'first', 'last']
+    'AggregateFunction', ['max', 'min', 'mean', 'sum', 'first', 'last']
 )
-AggregatePeriod = _create_enum('AggregatePeriod', ['week', 'month', 'year'])
+AggregatePeriod = _create_enum('AggregatePeriod', ['week', 'month', 'quarter', 'year'])
 
 
 def __interpolate_step(x: pd.Series, dates: pd.Series = None) -> pd.Series:
@@ -46,13 +54,16 @@ def __interpolate_step(x: pd.Series, dates: pd.Series = None) -> pd.Series:
     first_date = pd.Timestamp(dates.index[0]) if isinstance(x.index[0], pd.Timestamp) else dates.index[0]
 
     # locate previous valid date or take first value from series
-    prev = x.index[0] if first_date < x.index[0] else x.index[x.index.get_loc(first_date, 'pad')]
+    prev = x.index[0] if first_date < x.index[0] else x.index[x.index.get_indexer([first_date], method='pad')]
 
     current = x[prev]
 
-    curve = x.align(dates, 'right', )[0]  # only need values from dates
+    curve = x.align(
+        dates,
+        'right',
+    )[0]  # only need values from dates
 
-    for knot in curve.iteritems():
+    for knot in curve.items():
         if np.isnan(knot[1]):
             curve[knot[0]] = current
         else:
@@ -61,8 +72,9 @@ def __interpolate_step(x: pd.Series, dates: pd.Series = None) -> pd.Series:
 
 
 @plot_function
-def align(x: Union[pd.Series, Real], y: Union[pd.Series, Real], method: Interpolate = Interpolate.INTERSECT) -> \
-        Union[List[pd.Series], List[Real]]:
+def align(
+    x: Union[pd.Series, Real], y: Union[pd.Series, Real], method: Interpolate = Interpolate.INTERSECT
+) -> Union[list[pd.Series], list[Real]]:
     """
     Align dates of two series or scalars
 
@@ -123,23 +135,24 @@ def align(x: Union[pd.Series, Real], y: Union[pd.Series, Real], method: Interpol
         return x.align(y, 'outer', fill_value=0)
     if method == Interpolate.TIME:
         new_x, new_y = x.align(y, 'outer')
-        new_x.interpolate('time', limit_area='inside', inplace=True)
-        new_y.interpolate('time', limit_area='inside', inplace=True)
+        new_x = new_x.interpolate('time', limit_area='inside')
+        new_y = new_y.interpolate('time', limit_area='inside')
         return [new_x, new_y]
     if method == Interpolate.STEP:
         new_x, new_y = x.align(y, 'outer')
-        new_x.fillna(method='ffill', inplace=True)
-        new_y.fillna(method='ffill', inplace=True)
-        new_x.fillna(method='bfill', inplace=True)
-        new_y.fillna(method='bfill', inplace=True)
+        new_x = new_x.ffill().bfill()
+        new_y = new_y.ffill().bfill()
         return [new_x, new_y]
     else:
         raise MqValueError('Unknown intersection type: ' + method)
 
 
 @plot_function
-def interpolate(x: pd.Series, dates: Union[List[date], List[time], pd.Series] = None,
-                method: Interpolate = Interpolate.INTERSECT) -> pd.Series:
+def interpolate(
+    x: pd.Series,
+    dates: Union[list[dt.date], list[dt.time], pd.Series] = None,
+    method: Interpolate = Interpolate.INTERSECT,
+) -> pd.Series:
     """
     Interpolate over specified dates or times
 
@@ -205,7 +218,7 @@ def interpolate(x: pd.Series, dates: Union[List[date], List[time], pd.Series] = 
 
 
 @plot_function
-def value(x: pd.Series, date: Union[date, time], method: Interpolate = Interpolate.STEP) -> pd.Series:
+def value(x: pd.Series, date: Union[dt.date, dt.time], method: Interpolate = Interpolate.STEP) -> pd.Series:
     """
     Value at specified date or time
 
@@ -249,7 +262,7 @@ def value(x: pd.Series, date: Union[date, time], method: Interpolate = Interpola
     """
 
     values = interpolate(x, [date], method)
-    return values.get(0)
+    return None if values.empty else values.iloc[0]
 
 
 @plot_function
@@ -280,7 +293,7 @@ def day(x: pd.Series) -> pd.Series:
     :func:`month` :func:`year`
 
     """
-    return pd.to_datetime(x.index.to_series()).dt.day
+    return pd.Series(pd.to_datetime(x.index.to_series()).dt.day, dtype=np.int64)
 
 
 @plot_function
@@ -311,7 +324,7 @@ def month(x: pd.Series) -> pd.Series:
     :func:`day` :func:`year`
 
     """
-    return pd.to_datetime(x.index.to_series()).dt.month
+    return pd.Series(pd.to_datetime(x.index.to_series()).dt.month, dtype=np.int64)
 
 
 @plot_function
@@ -342,7 +355,7 @@ def year(x: pd.Series) -> pd.Series:
     :func:`day` :func:`month`
 
     """
-    return pd.to_datetime(x.index.to_series()).dt.year
+    return pd.Series(pd.to_datetime(x.index.to_series()).dt.year, dtype=np.int64)
 
 
 @plot_function
@@ -373,7 +386,7 @@ def quarter(x: pd.Series) -> pd.Series:
     :func:`day` :func:`month`
 
     """
-    return pd.to_datetime(x.index.to_series()).dt.quarter
+    return pd.Series(pd.to_datetime(x.index.to_series()).dt.quarter, dtype=np.int64)
 
 
 @plot_function
@@ -404,14 +417,14 @@ def weekday(x: pd.Series) -> pd.Series:
     :func:`day` :func:`month`
 
     """
-    return pd.to_datetime(x.index.to_series()).dt.weekday
+    return pd.Series(pd.to_datetime(x.index.to_series()).dt.weekday, dtype=np.int64)
 
 
 @plot_function
 def day_count_fractions(
-        dates: Union[List[date], pd.Series],
-        convention: DayCountConvention = DayCountConvention.ACTUAL_360,
-        frequency: PaymentFrequency = PaymentFrequency.MONTHLY
+    dates: Union[list[dt.date], pd.Series],
+    convention: DayCountConvention = DayCountConvention.ACTUAL_360,
+    frequency: PaymentFrequency = PaymentFrequency.MONTHLY,
 ) -> pd.Series:
     """
     Day count fractions between dates in series
@@ -457,15 +470,16 @@ def day_count_fractions(
         return pd.Series(dtype=float)
 
     start_dates = date_list[0:-1]
-    end_dates = date_list[1:len(date_list)]
+    end_dates = date_list[1 : len(date_list)]
 
     dcfs = map(lambda a, b: day_count_fraction(a, b, convention, frequency), start_dates, end_dates)
-    return pd.Series(data=[np.NaN] + list(dcfs), index=date_list[0:len(date_list)])
+    return pd.Series(data=[np.nan] + list(dcfs), index=date_list[0 : len(date_list)])
 
 
 @plot_function
-def date_range(x: pd.Series, start_date: Union[date, int], end_date: Union[date, int],
-               weekdays_only: bool = False) -> pd.Series:
+def date_range(
+    x: pd.Series, start_date: Union[dt.date, int], end_date: Union[dt.date, int], weekdays_only: bool = False
+) -> pd.Series:
     """
     Create a time series from a (sub-)range of dates in an existing time series.
 
@@ -490,7 +504,7 @@ def date_range(x: pd.Series, start_date: Union[date, int], end_date: Union[date,
 
     create time series with the absolute date:
 
-    >>> date_range(series, Date(2021,1,1), Date(2021,12,30))
+    >>> date_range(series, dt.date(2021,1,1), dt.date(2021,12,30))
 
     **See also**
 
@@ -499,13 +513,13 @@ def date_range(x: pd.Series, start_date: Union[date, int], end_date: Union[date,
     """
     if not isinstance(weekdays_only, bool):
         raise MqTypeError('expected a boolean value for "weekdays_only"')
-    if not (x.index.is_all_dates or all(map(lambda a: isinstance(a, date), x.index.values))):
+    if not (isinstance(x.index, pd.DatetimeIndex) or all(map(lambda a: isinstance(a, dt.date), x.index.values))):
         raise MqValueError('input is not a time series')
 
     if isinstance(start_date, int):
         start_date = x.index[start_date]
     if isinstance(end_date, int):
-        end_date = x.index[- (1 + end_date)]
+        end_date = x.index[-(1 + end_date)]
 
     try:
         start_date = start_date.date()
@@ -517,15 +531,18 @@ def date_range(x: pd.Series, start_date: Union[date, int], end_date: Union[date,
         week_mask = None
         wd = start_date.weekday()
         if wd > 4:
-            start_date += timedelta(days=7 - wd)
+            start_date += dt.timedelta(days=7 - wd)
     else:
         week_mask = tuple([True] * 7)
 
-    return x.loc[x.index.intersection(list(_date_range(start_date, end_date, week_mask=week_mask)))]
+    date_list = list(_date_range(start_date, end_date, week_mask=week_mask))
+    if isinstance(x.index, pd.DatetimeIndex):
+        date_list = [pd.Timestamp(d) for d in date_list]
+    return x.loc[x.index.isin(date_list)]
 
 
 @plot_function
-def append(series: List[pd.Series]) -> pd.Series:
+def append(series: list[pd.Series]) -> pd.Series:
     """
     Append data series
 
@@ -556,12 +573,12 @@ def append(series: List[pd.Series]) -> pd.Series:
     for i in range(1, len(series)):
         cur = series[i]
         start = res.index[-1]
-        res = res.append(cur.loc[cur.index > start])
+        res = pd.concat([res, cur.loc[cur.index > start]])
     return res
 
 
 @plot_function
-def prepend(x: List[pd.Series]) -> pd.Series:
+def prepend(x: list[pd.Series]) -> pd.Series:
     """
     Prepend data series
 
@@ -587,18 +604,23 @@ def prepend(x: List[pd.Series]) -> pd.Series:
     :func:`union`
 
     """
-    res = pd.Series(dtype='float64')
+    if not x:
+        return pd.Series(dtype='float64')
+    if len(x) == 1:
+        return x[0].copy()
+    parts = []
     for i in range(len(x)):
         this = x[i]
         if i == len(x) - 1:
-            return res.append(this)
-        end = x[i + 1].index[0]
-        res = res.append(this.loc[this.index < end])
-    return res
+            parts.append(this)
+        else:
+            end = x[i + 1].index[0]
+            parts.append(this.loc[this.index < end])
+    return pd.concat(parts)
 
 
 @plot_function
-def union(x: List[pd.Series]) -> pd.Series:
+def union(x: list[pd.Series]) -> pd.Series:
     """
     Fill in missing dates or times of one series with another
 
@@ -659,10 +681,14 @@ def bucketize(series: pd.Series, aggregate_function: AggregateFunction, period: 
     :func:`moving_average`
     """
     series.index = pd.to_datetime(series.index)
-    frequency = period.value[0].upper()
+    period_char = period.value[0].upper()
+    frequency_map = {'W': 'W', 'M': FREQ_MONTH_END, 'Q': FREQ_QUARTER_END, 'Y': FREQ_YEAR_END}
+    frequency = frequency_map.get(period_char, period_char)
     agg = aggregate_function.value
     result = series.resample(frequency).apply(agg)
 
+    if result.empty:
+        return result
     last_timestamp = min(series.index[-1], result.index[-1])
     idx = result.index[:-1].insert(len(result) - 1, last_timestamp)
     result.index = idx
@@ -670,7 +696,7 @@ def bucketize(series: pd.Series, aggregate_function: AggregateFunction, period: 
 
 
 @plot_function
-def day_count(first: date, second: date) -> int:
+def day_count(first: dt.date, second: dt.date) -> int:
     """
     Counts the number of business days between two dates. Monday through Friday are considered to be business days.
 
@@ -678,6 +704,88 @@ def day_count(first: date, second: date) -> int:
     :param second: second date
     :return: number of business days between first and second
     """
-    if not (isinstance(first, date) and isinstance(second, date)):
+    if not (isinstance(first, dt.date) and isinstance(second, dt.date)):
         raise MqValueError('inputs must be dates')
     return np.busday_count(first, second)
+
+
+@plot_function
+def day_countdown(end_date: dt.date, start_date: dt.date = None, business_days: bool = False) -> pd.Series:
+    """Create a series counting down the number of days from each date to ``end_date``.
+
+    :param end_date: last date / countdown target
+    :param start_date: first date in the generated series (default: today)
+    :param business_days: whether to use business days (default False)
+    :return: timeseries of day counts
+
+    **Usage**
+
+    The returned series is indexed by dates from ``start_date`` to ``end_date`` (inclusive). Values are integers giving
+    the number of days between the index date and ``end_date``.
+
+    If ``business_days`` is True, the index will include only Monday through Friday as business days and the
+    counts will be business-day counts. If False (default), the index will include all
+    calendar days and the counts will be calendar-day counts.
+
+    **Examples**
+
+    Calendar-day countdown from 7May21 to 17May21:
+    >>> day_countdown(Date(2035, 5, 17), Date(2025, 5, 7))
+
+    Business-day countdown (Mon-Fri only):
+    >>> day_countdown(Date(2035, 5, 17), Date(2025, 5, 7), True)
+
+    Calendar-day countdown starting today:
+    >>> day_countdown(Date(2035, 5, 17))
+    """
+    if start_date is None:
+        start_date = dt.date.today()
+
+    if not isinstance(start_date, dt.date):
+        raise MqValueError('start_date must be a date')
+    if not isinstance(end_date, dt.date):
+        raise MqValueError('end_date must be a date')
+
+    if start_date > end_date:
+        return pd.Series(dtype=np.int64)
+
+    if business_days:
+        idx = pd.bdate_range(start=start_date, end=end_date)
+        if idx.empty:
+            return pd.Series(dtype=np.int64)
+        # busday_count is [start, end) so end_date itself is 0
+        start_days = idx.values.astype('datetime64[D]')
+        end_day = np.datetime64(end_date).astype('datetime64[D]')
+        values = np.busday_count(start_days, end_day).astype(np.int64)
+    else:
+        idx = pd.date_range(start=start_date, end=end_date, freq=FREQ_DAY)
+        start_days = idx.values.astype('datetime64[D]')
+        end_day = np.datetime64(end_date).astype('datetime64[D]')
+        values = (end_day - start_days).astype(np.int64)
+
+    return pd.Series(values, index=idx)
+
+
+@requires_session
+@plot_function
+def align_calendar(series: pd.Series, calendar: str) -> pd.Series:
+    """
+    Aligns a series to a given calendar removing values in the holiday calendar and the week mask (i.e. remove Saturday
+    and Sunday)
+
+    :param series: data series to align
+    :param calendar: calendar to align the series (i.e. NYC, NYSE, USD)
+
+    :return: timeseries of the data aligned to a calendar
+
+    **Examples**
+
+    >>> x = generate_series(100)
+    >>> align_calendar(x, 'NYC')
+    """
+    gs_calendar = GsCalendar.get(calendar)
+    cbd = pd.tseries.offsets.CustomBusinessDay(calendar=gs_calendar.business_day_calendar())
+    filtered_series = series[
+        series.index.isin(pd.date_range(start=series.first_valid_index(), end=series.last_valid_index(), freq=cbd))
+    ]
+    return filtered_series

@@ -18,19 +18,17 @@ by the Federal Reserve Bank of St. Louis. FRED terms of use
 available at https://research.stlouisfed.org/docs/api/terms_of_use.html
 """
 
+import datetime as dt
+import textwrap
+from dataclasses import asdict, replace
 from typing import Iterable, Optional, Union
 
 import pandas as pd
-import datetime as dt
-import textwrap
-from gs_quant.api.utils import handle_proxy
-
 from requests.exceptions import HTTPError
-
-from dataclasses import asdict, replace
 
 from gs_quant.api.data import DataApi
 from gs_quant.api.fred.fred_query import FredQuery
+from gs_quant.api.utils import handle_proxy
 
 """
 Fred Data API that provides functions to query the Fred dataset.
@@ -49,18 +47,20 @@ class FredDataApi(DataApi):
         if api_key is not None:
             self.api_key = api_key
         else:
-            raise ValueError(textwrap.dedent("""
+            raise ValueError(
+                textwrap.dedent("""
                     Please pass a string with your API key. You can sign up for a free api key on the Fred website at
-                    http://research.stlouisfed.org/fred2/"""))
+                    http://research.stlouisfed.org/fred2/""")
+            )
 
     def build_query(
-            self,
-            start: Optional[Union[dt.date, dt.datetime]] = None,
-            end: Optional[Union[dt.date, dt.datetime]] = None,
-            as_of: Optional[dt.datetime] = None,
-            since: Optional[dt.datetime] = None,
-            fields: Optional[Iterable[str]] = None,
-            **kwargs
+        self,
+        start: Optional[Union[dt.date, dt.datetime]] = None,
+        end: Optional[Union[dt.date, dt.datetime]] = None,
+        as_of: Optional[dt.datetime] = None,
+        since: Optional[dt.datetime] = None,
+        fields: Optional[Iterable[str]] = None,
+        **kwargs,
     ) -> FredQuery:
         """
         Builds a FRED URL to query.
@@ -75,7 +75,7 @@ class FredDataApi(DataApi):
         """
 
         if start is not None and end is not None:
-            if type(start) != type(end):
+            if type(start) is not type(end):
                 raise ValueError('Start and end types must match!')
 
         request = FredQuery(observation_start=start, observation_end=end, realtime_end=as_of, realtime_start=since)
@@ -130,7 +130,9 @@ class FredDataApi(DataApi):
         data = data.sort_index()
         return data
 
-    def construct_dataframe_with_types(self, dataset_id: str, data: pd.Series, schema_varies=False) -> pd.DataFrame:
+    def construct_dataframe_with_types(
+        self, dataset_id: str, data: pd.Series, schema_varies=False, standard_fields=False
+    ) -> pd.DataFrame:
         """
         Constructs a dataframe with correct date types.
 

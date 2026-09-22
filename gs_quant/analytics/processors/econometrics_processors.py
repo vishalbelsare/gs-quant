@@ -16,36 +16,47 @@ under the License.
 
 from typing import Optional, Union
 
-from pandas import Series
+import pandas as pd
 
-from gs_quant.analytics.core.processor import BaseProcessor, DataCoordinateOrProcessor, DataQueryInfo, \
-    DateOrDatetimeOrRDate
+from gs_quant.analytics.core.processor import (
+    BaseProcessor,
+    DataCoordinateOrProcessor,
+    DataQueryInfo,
+    DateOrDatetimeOrRDate,
+)
 from gs_quant.analytics.core.processor_result import ProcessorResult
 from gs_quant.analytics.processors.special_processors import MeasureProcessor
+from gs_quant.common import Currency
+from gs_quant.data import DataFrequency
 from gs_quant.data.coordinate import DataCoordinate
 from gs_quant.data.query import DataQuery
 from gs_quant.entities.entity import Entity
-from gs_quant.markets.securities import Stock, Cross
-from gs_quant.target.common import Currency
-from gs_quant.timeseries import correlation, Window, SeriesType, DataMeasure, DataFrequency, DataContext, \
-    fx_implied_correlation
-from gs_quant.timeseries import excess_returns_pure
-from gs_quant.timeseries.econometrics import get_ratio_pure, SharpeAssets, change, returns
-from gs_quant.timeseries.econometrics import volatility, Returns, beta
+from gs_quant.markets.securities import Cross, Stock
+from gs_quant.timeseries import (
+    DataContext,
+    DataMeasure,
+    SeriesType,
+    Window,
+    correlation,
+    excess_returns_pure,
+    fx_implied_correlation,
+)
+from gs_quant.timeseries.econometrics import Returns, SharpeAssets, beta, change, get_ratio_pure, returns, volatility
 from gs_quant.timeseries.helper import CurveType
 
 
 class VolatilityProcessor(BaseProcessor):
-
-    def __init__(self,
-                 a: DataCoordinateOrProcessor,
-                 *,
-                 start: Optional[DateOrDatetimeOrRDate] = None,
-                 end: Optional[DateOrDatetimeOrRDate] = None,
-                 w: Union[Window, int] = Window(None, 0),
-                 returns_type: Returns = Returns.SIMPLE,
-                 **kwargs):
-        """ VolatilityProcessor
+    def __init__(
+        self,
+        a: DataCoordinateOrProcessor,
+        *,
+        start: Optional[DateOrDatetimeOrRDate] = None,
+        end: Optional[DateOrDatetimeOrRDate] = None,
+        w: Union[Window, int] = Window(None, 0),
+        returns_type: Returns = Returns.SIMPLE,
+        **kwargs,
+    ):
+        """VolatilityProcessor
 
         :param a: DataCoordinate or BaseProcessor for the series to apply the volatility timeseries function
         :param start: start date or time used in the underlying data query
@@ -83,17 +94,18 @@ class VolatilityProcessor(BaseProcessor):
 
 
 class SharpeRatioProcessor(BaseProcessor):
-
-    def __init__(self,
-                 a: DataCoordinateOrProcessor,
-                 *,
-                 start: Optional[DateOrDatetimeOrRDate] = None,
-                 end: Optional[DateOrDatetimeOrRDate] = None,
-                 currency: Currency,
-                 w: Union[Window, int] = None,
-                 curve_type: CurveType = CurveType.PRICES,
-                 **kwargs):
-        """ SharpeRatioProcessor
+    def __init__(
+        self,
+        a: DataCoordinateOrProcessor,
+        *,
+        start: Optional[DateOrDatetimeOrRDate] = None,
+        end: Optional[DateOrDatetimeOrRDate] = None,
+        currency: Currency,
+        w: Union[Window, int] = None,
+        curve_type: CurveType = CurveType.PRICES,
+        **kwargs,
+    ):
+        """SharpeRatioProcessor
 
         :param a: DataCoordinate or BaseProcessor for the series of prices or excess returns
         :param currency: currency for risk-free rate, defaults to USD
@@ -120,10 +132,7 @@ class SharpeRatioProcessor(BaseProcessor):
         marquee_id = SharpeAssets[self.currency.value].value
         entity = Stock(marquee_id, "", "")
 
-        coordinate: DataCoordinate = DataCoordinate(
-            measure=DataMeasure.CLOSE_PRICE,
-            frequency=DataFrequency.DAILY
-        )
+        coordinate: DataCoordinate = DataCoordinate(measure=DataMeasure.CLOSE_PRICE, frequency=DataFrequency.DAILY)
 
         data_query: DataQuery = DataQuery(coordinate=coordinate, start=self.start, end=self.end)
 
@@ -148,17 +157,18 @@ class SharpeRatioProcessor(BaseProcessor):
 
 
 class CorrelationProcessor(BaseProcessor):
-
-    def __init__(self,
-                 a: DataCoordinateOrProcessor,
-                 *,
-                 benchmark: Entity,
-                 start: Optional[DateOrDatetimeOrRDate] = None,
-                 end: Optional[DateOrDatetimeOrRDate] = None,
-                 w: Union[Window, int] = Window(None, 0),
-                 type_: SeriesType = SeriesType.PRICES,
-                 **kwargs):
-        """ CorrelationProcessor
+    def __init__(
+        self,
+        a: DataCoordinateOrProcessor,
+        *,
+        benchmark: Entity,
+        start: Optional[DateOrDatetimeOrRDate] = None,
+        end: Optional[DateOrDatetimeOrRDate] = None,
+        w: Union[Window, int] = Window(None, 0),
+        type_: SeriesType = SeriesType.PRICES,
+        **kwargs,
+    ):
+        """CorrelationProcessor
 
         :param a: DataCoordinate or BaseProcessor for the series
         :param benchmark: benchmark to compare price series
@@ -210,15 +220,15 @@ class CorrelationProcessor(BaseProcessor):
 
 
 class ChangeProcessor(BaseProcessor):
-
-    def __init__(self,
-                 a: DataCoordinateOrProcessor,
-                 *,
-                 start: Optional[DateOrDatetimeOrRDate] = None,
-                 end: Optional[DateOrDatetimeOrRDate] = None,
-                 **kwargs):
-
-        """ ChangeProcessor computes the change of a series
+    def __init__(
+        self,
+        a: DataCoordinateOrProcessor,
+        *,
+        start: Optional[DateOrDatetimeOrRDate] = None,
+        end: Optional[DateOrDatetimeOrRDate] = None,
+        **kwargs,
+    ):
+        """ChangeProcessor computes the change of a series
 
         :param a: DataCoordinate or BaseProcessor for the series
         :param start: start date or time used in the underlying data query
@@ -246,17 +256,17 @@ class ChangeProcessor(BaseProcessor):
 
 
 class ReturnsProcessor(BaseProcessor):
-
-    def __init__(self,
-                 a: DataCoordinateOrProcessor,
-                 *,
-                 start: Optional[DateOrDatetimeOrRDate] = None,
-                 end: Optional[DateOrDatetimeOrRDate] = None,
-                 observations: Optional[int] = None,
-                 type_: Returns = Returns.SIMPLE,
-                 **kwargs):
-
-        """ ReturnsProcessor computes the returns of a series
+    def __init__(
+        self,
+        a: DataCoordinateOrProcessor,
+        *,
+        start: Optional[DateOrDatetimeOrRDate] = None,
+        end: Optional[DateOrDatetimeOrRDate] = None,
+        observations: Optional[int] = None,
+        type_: Returns = Returns.SIMPLE,
+        **kwargs,
+    ):
+        """ReturnsProcessor computes the returns of a series
 
         :param a: DataCoordinate or BaseProcessor for the series
         :param start: start date or time used in the underlying data query
@@ -282,7 +292,7 @@ class ReturnsProcessor(BaseProcessor):
                 data = a_data.data
                 if self.observations is None:
                     if len(data) > 1:
-                        self.value = ProcessorResult(True, Series([(data.iloc[-1] - data.iloc[0]) / data.iloc[0]]))
+                        self.value = ProcessorResult(True, pd.Series([(data.iloc[-1] - data.iloc[0]) / data.iloc[0]]))
                     else:
                         self.value = ProcessorResult(True, 'Series has is less than 2.')
                 else:
@@ -296,15 +306,17 @@ class ReturnsProcessor(BaseProcessor):
 
 
 class BetaProcessor(BaseProcessor):
-    def __init__(self,
-                 a: DataCoordinateOrProcessor,
-                 b: DataCoordinateOrProcessor,
-                 *,
-                 start: Optional[DateOrDatetimeOrRDate] = None,
-                 end: Optional[DateOrDatetimeOrRDate] = None,
-                 w: Union[Window, int] = Window(None, 0),
-                 **kwargs):
-        """ BetaProcessor
+    def __init__(
+        self,
+        a: DataCoordinateOrProcessor,
+        b: DataCoordinateOrProcessor,
+        *,
+        start: Optional[DateOrDatetimeOrRDate] = None,
+        end: Optional[DateOrDatetimeOrRDate] = None,
+        w: Union[Window, int] = Window(None, 0),
+        **kwargs,
+    ):
+        """BetaProcessor
 
         :param a: DataCoordinate or BaseProcessor for the first series
         :param b: DataCoordinate or BaseProcessor for the second series
@@ -354,15 +366,16 @@ class BetaProcessor(BaseProcessor):
 
 
 class FXImpliedCorrProcessor(MeasureProcessor):
-
-    def __init__(self,
-                 *,
-                 cross2: Entity = None,
-                 tenor: str = '3m',
-                 start: Optional[DateOrDatetimeOrRDate] = None,
-                 end: Optional[DateOrDatetimeOrRDate] = None,
-                 **kwargs):
-        """ CorrelationProcessor
+    def __init__(
+        self,
+        *,
+        cross2: Entity = None,
+        tenor: str = '3m',
+        start: Optional[DateOrDatetimeOrRDate] = None,
+        end: Optional[DateOrDatetimeOrRDate] = None,
+        **kwargs,
+    ):
+        """CorrelationProcessor
 
         :param a: DataCoordinate or BaseProcessor for the series
         :param benchmark: benchmark to compare price series
@@ -373,7 +386,9 @@ class FXImpliedCorrProcessor(MeasureProcessor):
                 Window size defaults to length of series.
         :param type_: type of both input series: prices or returns
         """
-        super().__init__(**kwargs, )
+        super().__init__(
+            **kwargs,
+        )
         self.cross2: Entity = cross2
         self.tenor: str = tenor
         # datetime

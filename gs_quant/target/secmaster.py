@@ -44,6 +44,7 @@ class SecMasterAssetType(EnumBase, Enum):
     Mutual_Fund = 'Mutual Fund'
     Right = 'Right'
     Preferred = 'Preferred'
+    Private_Preferred = 'Private Preferred'
     Misc_ = 'Misc.'
     REIT = 'REIT'
     Private_Comp = 'Private Comp'
@@ -69,11 +70,25 @@ class SecMasterAssetType(EnumBase, Enum):
     Financial_index_future_ = 'Financial index future.'
     Single_Stock_Future = 'Single Stock Future'
     Pool = 'Pool'
-    Certificate_of_Deposit = 'Certificate of Deposit'
+    Certificate_Of_Deposit = 'Certificate Of Deposit'
     Debt_Structured_Note = 'Debt Structured Note'
     Agency_CMO = 'Agency CMO'
     Future_Option = 'Future Option'
-    Convertible_Bond = 'Convertible Bond'    
+    Convertible_Bond = 'Convertible Bond'
+    Austrian_Crt = 'Austrian Crt'
+    BDR = 'BDR'
+    Belgium_Cert = 'Belgium Cert'
+    CDR = 'CDR'
+    EDR = 'EDR'
+    German_Cert = 'German Cert'
+    IDR = 'IDR'
+    RDC = 'RDC'
+    Swiss_Cert = 'Swiss Cert'
+    Canadian_DR = 'Canadian DR'
+    Singapore_DR = 'Singapore DR'
+    To_Be_Announced = 'To Be Announced'
+    Basket = 'Basket'
+    Physical_index_future_ = 'Physical index future.'
 
 
 class SecMasterCorporateActionStatus(EnumBase, Enum):    
@@ -91,7 +106,8 @@ class SecMasterCorporateActionStatus(EnumBase, Enum):
     Cancelled = 'Cancelled'
     Lapsed = 'Lapsed'
     Proposed = 'Proposed'
-    Withdrawn = 'Withdrawn'    
+    Withdrawn = 'Withdrawn'
+    All = 'All'    
 
 
 class SecMasterCorporateActionType(EnumBase, Enum):    
@@ -101,22 +117,69 @@ class SecMasterCorporateActionType(EnumBase, Enum):
     Cash_Dividend = 'Cash Dividend'
     Merger = 'Merger'
     Spinoff = 'Spinoff'
-    Split = 'Split'    
+    Split = 'Split'
+    Rights = 'Rights'
+    Reorganization = 'Reorganization'
+    Special_Adjustment = 'Special Adjustment'
+    Quote_Lot_Adjustment = 'Quote Lot Adjustment'
+    Currency_Adjustment = 'Currency Adjustment'
+    All = 'All'    
 
 
 @handle_camel_case_args
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
-class SecMasterAuditFields(Base):
-    last_updated_time: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
-    last_updated_by_id: Optional[str] = field(default=None, metadata=field_metadata)
-    created_time: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
-    created_by_id: Optional[str] = field(default=None, metadata=field_metadata)
-    owner_id: Optional[str] = field(default=None, metadata=field_metadata)
+class FederatedGetRequestPathSchema(Base):
+    identifier: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    id_: Optional[tuple[str, ...]] = field(default=None, metadata=config(field_name='id', exclude=exclude_none))
+    asset_id: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    gsid: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    ticker: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    bbid: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    bcid: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    ric: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    rcic: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    cusip: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    cins: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    sedol: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    isin: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    gss: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    prime_id: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    type_: Optional[tuple[str, ...]] = field(default=None, metadata=config(field_name='type', exclude=exclude_none))
+    country_code: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    exchange: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    is_primary: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    effective_date: Optional[tuple[datetime.date, ...]] = field(default=None, metadata=field_metadata)
+    limit: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    offset_key: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
-SecMasterIdentifiers = Dict[str, str]
+@handle_camel_case_args
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(unsafe_hash=True, repr=False)
+class FederatedResponse(Base):
+    request_id: Optional[str] = field(default=None, metadata=field_metadata)
+    offset_key: Optional[str] = field(default=None, metadata=field_metadata)
+    securities_master: Optional[DictBase] = field(default=None, metadata=config(field_name='SecuritiesMaster', exclude=exclude_none))
+    asset_service: Optional[DictBase] = field(default=None, metadata=config(field_name='AssetService', exclude=exclude_none))
+    error: Optional[str] = field(default=None, metadata=field_metadata)
+    name: Optional[str] = field(default=None, metadata=name_metadata)
+
+
+@handle_camel_case_args
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(unsafe_hash=True, repr=False)
+class SecMasterCapEndpointResponse(Base):
+    asset_types_total: Optional[dict[str, float]] = field(default=None, metadata=field_metadata)
+    total_results: Optional[int] = field(default=None, metadata=field_metadata)
+    results: Optional[tuple[DictBase, ...]] = field(default=None, metadata=field_metadata)
+    as_of_time: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
+    request_id: Optional[str] = field(default=None, metadata=field_metadata)
+    name: Optional[str] = field(default=None, metadata=name_metadata)
+
+
+SecMasterIdentifiers = dict
 
 
 @handle_camel_case_args
@@ -137,16 +200,15 @@ class SecMasterRecord(Base):
 class SecMasterResourceCompany(Base):
     company_id: Optional[float] = field(default=None, metadata=field_metadata)
     company_name: Optional[str] = field(default=None, metadata=field_metadata)
-    name: Optional[str] = field(default=None, metadata=name_metadata)
-
-
-SecMasterSources = Dict[str, str]
+    identifiers: Optional[DictBase] = field(default=None, metadata=field_metadata)
+    name: Optional[str] = field(default=None, metadata=field_metadata)
+    issuer_id: Optional[str] = field(default=None, metadata=field_metadata)
 
 
 @handle_camel_case_args
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
-class SecMasterTemporalCompany(SecMasterResponseMulti):
+class SecMasterTemporalCompany(Base):
     gs_company_id: str = field(default=None, metadata=field_metadata)
     id_: Optional[str] = field(default=None, metadata=config(field_name='id', exclude=exclude_none))
     start_date: Optional[datetime.date] = field(default=None, metadata=field_metadata)
@@ -158,33 +220,19 @@ class SecMasterTemporalCompany(SecMasterResponseMulti):
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
 class ExchangeGetRequestPathSchema(Base):
-    gs_exchange_id: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    mic: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    operating_mic: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    ric_suffix_code: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    ric_exchange_code: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    bbg_exchange_code: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    name: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    country: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    fields: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    as_of_date: Optional[Tuple[datetime.date, ...]] = field(default=None, metadata=field_metadata)
-    limit: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    offset: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    offset_key: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-
-
-@handle_camel_case_args
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(unsafe_hash=True, repr=False)
-class SecMasterAssetSources(Base):
-    id_: Optional[str] = field(default=None, metadata=config(field_name='id', exclude=exclude_none))
-    asset_class: Optional[str] = field(default=None, metadata=field_metadata)
-    product: Optional[SecMasterSources] = field(default=None, metadata=field_metadata)
-    exchange: Optional[SecMasterSources] = field(default=None, metadata=field_metadata)
-    company: Optional[SecMasterSources] = field(default=None, metadata=field_metadata)
-    classifications: Optional[SecMasterSources] = field(default=None, metadata=field_metadata)
-    identifiers: Optional[SecMasterSources] = field(default=None, metadata=field_metadata)
-    name: Optional[str] = field(default=None, metadata=name_metadata)
+    gs_exchange_id: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    mic: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    operating_mic: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    ric_suffix_code: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    ric_exchange_code: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    bbg_exchange_code: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    name: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    country: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    fields: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    as_of_date: Optional[tuple[datetime.date, ...]] = field(default=None, metadata=field_metadata)
+    limit: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    offset: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    offset_key: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
 
 
 @handle_camel_case_args
@@ -200,14 +248,14 @@ class SecMasterCorporateAction(Base):
     multiplicative_adjust: Optional[float] = field(default=None, metadata=field_metadata)
     additive_adjust: Optional[float] = field(default=None, metadata=field_metadata)
     event_status: Optional[SecMasterCorporateActionStatus] = field(default=None, metadata=field_metadata)
-    records: Optional[Tuple[SecMasterRecord, ...]] = field(default=None, metadata=field_metadata)
+    records: Optional[tuple[SecMasterRecord, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
 @handle_camel_case_args
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
-class SecMasterExchange(SecMasterResponseMulti):
+class SecMasterExchange(Base):
     gs_exchange_id: str = field(default=None, metadata=field_metadata)
     id_: Optional[str] = field(default=None, metadata=config(field_name='id', exclude=exclude_none))
     name: Optional[str] = field(default=None, metadata=field_metadata)
@@ -221,12 +269,31 @@ class SecMasterExchange(SecMasterResponseMulti):
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
 class SecMasterGetActionsRequestPathSchema(Base):
-    event_type: Optional[Tuple[SecMasterCorporateActionType, ...]] = field(default=None, metadata=field_metadata)
-    event_status: Optional[Tuple[SecMasterCorporateActionStatus, ...]] = field(default=None, metadata=field_metadata)
-    gsid: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    event_id: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    corp_action_id: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    effective_date: Optional[Tuple[datetime.date, ...]] = field(default=None, metadata=field_metadata)
+    event_type: Optional[tuple[SecMasterCorporateActionType, ...]] = field(default=None, metadata=field_metadata)
+    event_status: Optional[tuple[SecMasterCorporateActionStatus, ...]] = field(default=None, metadata=field_metadata)
+    gsid: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    event_id: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    corp_action_id: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    effective_date: Optional[tuple[datetime.date, ...]] = field(default=None, metadata=field_metadata)
+    as_of_time: Optional[tuple[datetime.datetime, ...]] = field(default=None, metadata=field_metadata)
+    effective_date_from: Optional[tuple[datetime.date, ...]] = field(default=None, metadata=field_metadata)
+    effective_date_to: Optional[tuple[datetime.date, ...]] = field(default=None, metadata=field_metadata)
+    offset_key: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    limit: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    name: Optional[str] = field(default=None, metadata=name_metadata)
+
+
+@handle_camel_case_args
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(unsafe_hash=True, repr=False)
+class SecMasterGetCapitalStructureRequestPathSchema(Base):
+    issuer_id: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    type_: Optional[tuple[str, ...]] = field(default=None, metadata=config(field_name='type', exclude=exclude_none))
+    as_of_time: Optional[tuple[datetime.datetime, ...]] = field(default=None, metadata=field_metadata)
+    is_primary: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    effective_date: Optional[tuple[datetime.date, ...]] = field(default=None, metadata=field_metadata)
+    limit: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    offset_key: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -234,23 +301,29 @@ class SecMasterGetActionsRequestPathSchema(Base):
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
 class SecMasterGetRequestPathSchema(Base):
-    gsid: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    ticker: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    bbid: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    ric: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    rcic: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    cusip: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    sedol: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    isin: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    gss: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    prime_id: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    type_: Optional[Tuple[str, ...]] = field(default=None, metadata=config(field_name='type', exclude=exclude_none))
-    exchange: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    fields: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    as_of_date: Optional[Tuple[datetime.date, ...]] = field(default=None, metadata=field_metadata)
-    limit: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    offset: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    offset_key: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    identifier: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    gsid: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    ticker: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    bbg: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    bbid: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    ric: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    rcic: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    cusip: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    cins: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    sedol: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    isin: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    gss: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    prime_id: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    barra_id: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    axioma_id: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    type_: Optional[tuple[SecMasterAssetType, ...]] = field(default=None, metadata=config(field_name='type', exclude=exclude_none))
+    country_code: Optional[tuple[CountryCode, ...]] = field(default=None, metadata=field_metadata)
+    is_primary: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    all_listings: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    effective_date: Optional[tuple[datetime.date, ...]] = field(default=None, metadata=field_metadata)
+    as_of_time: Optional[tuple[datetime.datetime, ...]] = field(default=None, metadata=field_metadata)
+    limit: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
+    offset_key: Optional[tuple[str, ...]] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
 
 
@@ -273,7 +346,7 @@ class SecMasterResourceProduct(Base):
 @handle_camel_case_args
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
-class SecMasterTemporalProduct(SecMasterResponseMulti):
+class SecMasterTemporalProduct(Base):
     gsid: str = field(default=None, metadata=field_metadata)
     id_: Optional[str] = field(default=None, metadata=config(field_name='id', exclude=exclude_none))
     start_date: Optional[datetime.date] = field(default=None, metadata=field_metadata)
@@ -293,26 +366,27 @@ class SecMasterTemporalProduct(SecMasterResponseMulti):
 @dataclass(unsafe_hash=True, repr=False)
 class SecMasterAsset(Base):
     id_: str = field(default=None, metadata=config(field_name='id', exclude=exclude_none))
+    effective_date: Optional[datetime.date] = field(default=None, metadata=field_metadata)
+    start_date: Optional[datetime.date] = field(default=None, metadata=field_metadata)
+    name: Optional[str] = field(default=None, metadata=field_metadata)
     asset_class: Optional[AssetClass] = field(default=None, metadata=field_metadata)
     type_: Optional[SecMasterAssetType] = field(default=None, metadata=config(field_name='type', exclude=exclude_none))
     product: Optional[SecMasterResourceProduct] = field(default=None, metadata=field_metadata)
     exchange: Optional[SecMasterResourceExchange] = field(default=None, metadata=field_metadata)
+    currency: Optional[str] = field(default=None, metadata=field_metadata)
     company: Optional[SecMasterResourceCompany] = field(default=None, metadata=field_metadata)
+    issuer: Optional[SecMasterResourceCompany] = field(default=None, metadata=field_metadata)
     classifications: Optional[AssetClassifications] = field(default=None, metadata=field_metadata)
     identifiers: Optional[SecMasterIdentifiers] = field(default=None, metadata=field_metadata)
-    tags: Optional[Tuple[str, ...]] = field(default=None, metadata=field_metadata)
-    entitlements: Optional[Entitlements] = field(default=None, metadata=field_metadata)
-    entitlement_exclusions: Optional[EntitlementExclusions] = field(default=None, metadata=field_metadata)
-    audit_fields: Optional[SecMasterAuditFields] = field(default=None, metadata=field_metadata)
-    field_sources: Optional[SecMasterAssetSources] = field(default=None, metadata=field_metadata)
-    name: Optional[str] = field(default=None, metadata=name_metadata)
+    active_listing: Optional[bool] = field(default=None, metadata=field_metadata)
+    last_active_date: Optional[datetime.date] = field(default=None, metadata=field_metadata)
 
 
 @handle_camel_case_args
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
 class SecMasterResponseActions(Base):
-    results: Optional[Tuple[SecMasterCorporateAction, ...]] = field(default=None, metadata=field_metadata)
+    results: Optional[tuple[SecMasterCorporateAction, ...]] = field(default=None, metadata=field_metadata)
     total_results: Optional[float] = field(default=None, metadata=field_metadata)
     offset_key: Optional[str] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)
@@ -323,7 +397,7 @@ class SecMasterResponseActions(Base):
 @dataclass(unsafe_hash=True, repr=False)
 class SecMasterResponseMulti(Base):
     request_id: Optional[str] = field(default=None, metadata=field_metadata)
-    results: Optional[Tuple[SecMasterResponseMulti, ...]] = field(default=None, metadata=field_metadata)
+    results: Optional[tuple[Union[SecMasterExchange, SecMasterTemporalCompany, SecMasterTemporalProduct], ...]] = field(default=None, metadata=field_metadata)
     total_results: Optional[float] = field(default=None, metadata=field_metadata)
     offset_key: Optional[str] = field(default=None, metadata=field_metadata)
     limit: Optional[int] = field(default=None, metadata=field_metadata)
@@ -335,9 +409,10 @@ class SecMasterResponseMulti(Base):
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(unsafe_hash=True, repr=False)
 class SecMasterResponseAssets(Base):
-    results: Optional[Tuple[SecMasterAsset, ...]] = field(default=None, metadata=field_metadata)
+    results: Optional[tuple[SecMasterAsset, ...]] = field(default=None, metadata=field_metadata)
     total_results: Optional[float] = field(default=None, metadata=field_metadata)
     offset_key: Optional[str] = field(default=None, metadata=field_metadata)
     limit: Optional[int] = field(default=None, metadata=field_metadata)
     offset: Optional[int] = field(default=None, metadata=field_metadata)
+    update_time: Optional[datetime.datetime] = field(default=None, metadata=field_metadata)
     name: Optional[str] = field(default=None, metadata=name_metadata)

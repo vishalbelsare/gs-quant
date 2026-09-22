@@ -21,20 +21,23 @@ from typing import Optional, Union
 
 import pandas as pd
 
+from gs_quant.api.gs.assets import GsAssetApi
+from gs_quant.api.gs.data import GsDataApi, QueryType
+from gs_quant.common import AssetClass, AssetType, Currency as CurrencyEnum, PricingLocation
 from gs_quant.data import DataContext
 from gs_quant.datetime import GsCalendar
-from pandas import Series
-
-from gs_quant.target.common import Currency as CurrencyEnum, AssetClass, AssetType, PricingLocation
-from gs_quant.api.gs.assets import GsAssetApi
-from gs_quant.api.gs.data import QueryType, GsDataApi
-
 from gs_quant.errors import MqValueError
-from gs_quant.timeseries import ExtendedSeries, measures_rates as tm_rates, check_forward_looking
-from gs_quant.timeseries.measures import _asset_from_spec, _market_data_timed, _range_from_pricing_date, _get_custom_bd
-
-from gs_quant.markets.securities import AssetIdentifier, Asset
-from gs_quant.timeseries import ASSET_SPEC, plot_measure, MeasureDependency, GENERIC_DATE
+from gs_quant.markets.securities import Asset, AssetIdentifier
+from gs_quant.timeseries import (
+    ASSET_SPEC,
+    GENERIC_DATE,
+    ExtendedSeries,
+    MeasureDependency,
+    check_forward_looking,
+    measures_rates as tm_rates,
+    plot_measure,
+)
+from gs_quant.timeseries.measures import _asset_from_spec, _get_custom_bd, _market_data_timed, _range_from_pricing_date
 from gs_quant.timeseries.measures_rates import _get_term_struct_date
 
 _logger = logging.getLogger(__name__)
@@ -101,24 +104,14 @@ class TdapiInflationRatesDefaultsProvider:
 INFLATION_RATES_DEFAULTS = {
     "CURRENCIES": {
         "EUR": [
-            {"IndexType": "CPXTEMU", "Index": "CPI-CPXTEMU",
-             "pricingLocation": ["LDN"]},
-            {"IndexType": "FRCPXTOB", "Index": "CPI-FRCPXTOB",
-             "pricingLocation": ["LDN"]}
+            {"IndexType": "CPXTEMU", "Index": "CPI-CPXTEMU", "pricingLocation": ["LDN"]},
+            {"IndexType": "FRCPXTOB", "Index": "CPI-FRCPXTOB", "pricingLocation": ["LDN"]},
         ],
-        "USD": [{"IndexType": "CPURNSA", "Index": "CPI-CPURNSA",
-                 "pricingLocation": ["NYC"]}],
-        "GBP": [{"IndexType": "UKRPI", "Index": "CPI-UKRPI",
-                 "pricingLocation": ["LDN"]}],
-        "JPY": [{"IndexType": "JCPNGENF", "Index": "CPI-JCPNGENF",
-                 "pricingLocation": ["TKO"]}],
+        "USD": [{"IndexType": "CPURNSA", "Index": "CPI-CPURNSA", "pricingLocation": ["NYC"]}],
+        "GBP": [{"IndexType": "UKRPI", "Index": "CPI-UKRPI", "pricingLocation": ["LDN"]}],
+        "JPY": [{"IndexType": "JCPNGENF", "Index": "CPI-JCPNGENF", "pricingLocation": ["TKO"]}],
     },
-    "COMMON": {
-        "fixedRate": "ATM",
-        "clearingHouse": "LCH",
-        "terminationDate": "5y",
-        "effectiveDate": "0b"
-    }
+    "COMMON": {"fixedRate": "ATM", "clearingHouse": "LCH", "terminationDate": "5y", "effectiveDate": "0b"},
 }
 inflationRates_defaults_provider = TdapiInflationRatesDefaultsProvider(INFLATION_RATES_DEFAULTS)
 
@@ -127,11 +120,27 @@ CURRENCY_TO_INDEX_BENCHMARK = {
     'CAD': OrderedDict([('CACPI', 'CPI-CACPI')]),
     'DKK': OrderedDict([('DNCPINEW', 'CPI-DNCPINEW')]),
     'EUR': OrderedDict(
-        [('CPXTEMU', 'CPI-CPXTEMU'), ('BECPHLTH', 'CPI-BECPHLTH'), ('CPALBE', 'CPI-CPALBE'), ('CPALEMU', 'CPI-CPALEMU'),
-         ('FRCPXTOB', 'CPI-FRCPXTOB'), ('GKCPIUHL', 'CPI-GKCPIUHL'), ('GKCPNEWL', 'CPI-GKCPNEWL'),
-         ('GRCP2010', 'CPI-GRCP2010'), ('GRCPTK', 'CPI-GRCPTK'), ('IECPALL', 'CPI-IECPALL'), ('IECPEUI', 'CPI-IECPEUI'),
-         ('IECPINEW', 'CPI-IECPINEW'), ('ITCPI', 'CPI-ITCPI'), ('ITCPNICT', 'CPI-ITCPNICT'), ('MXNInfl', 'CPI-MXNInfl'),
-         ('NECPIND', 'CPI-NECPIND'), ('SPCPEU', 'CPI-SPCPEU'), ('SPIPC', 'CPI-SPIPC')]),
+        [
+            ('CPXTEMU', 'CPI-CPXTEMU'),
+            ('BECPHLTH', 'CPI-BECPHLTH'),
+            ('CPALBE', 'CPI-CPALBE'),
+            ('CPALEMU', 'CPI-CPALEMU'),
+            ('FRCPXTOB', 'CPI-FRCPXTOB'),
+            ('GKCPIUHL', 'CPI-GKCPIUHL'),
+            ('GKCPNEWL', 'CPI-GKCPNEWL'),
+            ('GRCP2010', 'CPI-GRCP2010'),
+            ('GRCPTK', 'CPI-GRCPTK'),
+            ('IECPALL', 'CPI-IECPALL'),
+            ('IECPEUI', 'CPI-IECPEUI'),
+            ('IECPINEW', 'CPI-IECPINEW'),
+            ('ITCPI', 'CPI-ITCPI'),
+            ('ITCPNICT', 'CPI-ITCPNICT'),
+            ('MXNInfl', 'CPI-MXNInfl'),
+            ('NECPIND', 'CPI-NECPIND'),
+            ('SPCPEU', 'CPI-SPCPEU'),
+            ('SPIPC', 'CPI-SPIPC'),
+        ]
+    ),
     'GBP': OrderedDict([('UKRPI', 'CPI-UKRPI'), ('UKCPI', 'CPI-UKCPI'), ('UKCPIH', 'CPI-UKCPIH')]),
     'ILS': OrderedDict([('ILCPI', 'CPI-ILCPI'), ('ISCPIL', 'CPI-ISCPIL')]),
     'INR': OrderedDict([('INFINFY', 'CPI-INFINFY')]),
@@ -142,8 +151,9 @@ CURRENCY_TO_INDEX_BENCHMARK = {
     'RUB': OrderedDict([('RUCP2000', 'CPI-RUCP2000')]),
     'SEK': OrderedDict([('SWCPI', 'CPI-SWCPI')]),
     'USD': OrderedDict(
-        [('CPURNSA', 'CPI-CPURNSA'), ('CPUPAXFE', 'CPI-CPUPAXFE'), ('CPUS', 'CPI-CPUS'), ('PPFXFDE', 'CPI-PPFXFDE')]),
-    'ZAR': OrderedDict([('SACPI', 'CPI-SACPI')])
+        [('CPURNSA', 'CPI-CPURNSA'), ('CPUPAXFE', 'CPI-CPUPAXFE'), ('CPUS', 'CPI-CPUS'), ('PPFXFDE', 'CPI-PPFXFDE')]
+    ),
+    'ZAR': OrderedDict([('SACPI', 'CPI-SACPI')]),
 }
 
 CURRENCY_TO_DUMMY_INFLATION_SWAP_BBID = {
@@ -175,8 +185,11 @@ def _get_tdapi_inflation_rates_assets(allow_many=False, **kwargs) -> Union[str, 
 
     if len(assets) > 1:
         # term structure measures need multiple assets
-        if ('asset_parameters_termination_date' not in kwargs) or (
-                'asset_parameters_effective_date' not in kwargs) or allow_many:
+        if (
+            ('asset_parameters_termination_date' not in kwargs)
+            or ('asset_parameters_effective_date' not in kwargs)
+            or allow_many
+        ):
             return [asset.id for asset in assets]
         else:
             raise MqValueError('Specified arguments match multiple assets')
@@ -191,11 +204,16 @@ def _check_inflation_index_type(currency, benchmark_type: Union[InflationIndexTy
         if benchmark_type.upper() in InflationIndexType.__members__:
             benchmark_type = InflationIndexType[benchmark_type.upper()]
         else:
-            raise MqValueError(benchmark_type + ' is not a valid index, pick one among ' +
-                               ', '.join([x.value for x in InflationIndexType]))
+            raise MqValueError(
+                benchmark_type
+                + ' is not a valid index, pick one among '
+                + ', '.join([x.value for x in InflationIndexType])
+            )
 
-    if isinstance(benchmark_type, InflationIndexType) and \
-            benchmark_type.value not in CURRENCY_TO_INDEX_BENCHMARK[currency.value].keys():
+    if (
+        isinstance(benchmark_type, InflationIndexType)
+        and benchmark_type.value not in CURRENCY_TO_INDEX_BENCHMARK[currency.value].keys()
+    ):
         raise MqValueError('%s is not supported for %s', benchmark_type.value, currency.value)
     else:
         return benchmark_type
@@ -206,23 +224,29 @@ def _get_inflation_swap_leg_defaults(currency: CurrencyEnum, benchmark_type: Inf
     # default benchmark types
     if benchmark_type is None:
         benchmark_type = InflationIndexType(str(list(CURRENCY_TO_INDEX_BENCHMARK[currency.value].keys())[0]))
-    benchmark_type_input = CURRENCY_TO_INDEX_BENCHMARK[currency.value].get(benchmark_type.value,
-                                                                           "CPI-" + benchmark_type.value)
-    return dict(currency=currency, index_type=benchmark_type_input,
-                pricing_location=pricing_location)
+    benchmark_type_input = CURRENCY_TO_INDEX_BENCHMARK[currency.value].get(
+        benchmark_type.value, "CPI-" + benchmark_type.value
+    )
+    return dict(currency=currency, index_type=benchmark_type_input, pricing_location=pricing_location)
 
 
 def _get_inflation_swap_csa_terms(curr: str, inflationindextype: str) -> dict:
     return dict(csaTerms=curr + '-1')
 
 
-def _get_inflation_swap_data(asset: Asset, swap_tenor: str, index_type: str = None,
-                             forward_tenor: Optional[GENERIC_DATE] = None,
-                             clearing_house: tm_rates._ClearingHouse = None,
-                             source: str = None, real_time: bool = False,
-                             query_type: QueryType = QueryType.SWAP_RATE,
-                             location: PricingLocation = None, allow_many=False,
-                             request_id: Optional[str] = None) -> pd.DataFrame:
+def _get_inflation_swap_data(
+    asset: Asset,
+    swap_tenor: str,
+    index_type: str = None,
+    forward_tenor: Optional[GENERIC_DATE] = None,
+    clearing_house: tm_rates._ClearingHouse = None,
+    source: str = None,
+    real_time: bool = False,
+    query_type: QueryType = QueryType.SWAP_RATE,
+    location: PricingLocation = None,
+    allow_many=False,
+    request_id: Optional[str] = None,
+) -> pd.DataFrame:
     if real_time:
         raise NotImplementedError('realtime inflation swap data not implemented')
     currency = CurrencyEnum(asset.get_identifier(AssetIdentifier.BLOOMBERG_ID))
@@ -241,13 +265,16 @@ def _get_inflation_swap_data(asset: Asset, swap_tenor: str, index_type: str = No
     forward_tenor = tm_rates._check_forward_tenor(forward_tenor)
 
     fixed_rate = 'ATM'
-    kwargs = dict(asset_class='Rates',
-                  type='InflationSwap', asset_parameters_termination_date=swap_tenor,
-                  asset_parameters_index=defaults['index_type'],
-                  asset_parameters_fixed_rate=fixed_rate,
-                  asset_parameters_clearing_house=clearing_house.value,
-                  asset_parameters_effective_date=forward_tenor,
-                  asset_parameters_notional_currency=currency.name)
+    kwargs = dict(
+        asset_class='Rates',
+        type='InflationSwap',
+        asset_parameters_termination_date=swap_tenor,
+        asset_parameters_index=defaults['index_type'],
+        asset_parameters_fixed_rate=fixed_rate,
+        asset_parameters_clearing_house=clearing_house.value,
+        asset_parameters_effective_date=forward_tenor,
+        asset_parameters_notional_currency=currency.name,
+    )
 
     rate_mqids = _get_tdapi_inflation_rates_assets(allow_many=allow_many, **kwargs)
 
@@ -259,24 +286,34 @@ def _get_inflation_swap_data(asset: Asset, swap_tenor: str, index_type: str = No
     where = dict(pricingLocation=pricing_location.value)
     entity_ids = [rate_mqids] if not isinstance(rate_mqids, list) else rate_mqids
 
-    _logger.debug(f'where asset= {rate_mqids}, swap_tenor={swap_tenor}, index={defaults["index_type"]}, '
-                  f'forward_tenor={forward_tenor}, pricing_location={pricing_location.value}, '
-                  f'clearing_house={clearing_house.value}, notional_currency={currency.name}, '
-                  f'request_id={request_id}')
-    q = GsDataApi.build_market_data_query(entity_ids, query_type, where=where, source=source,
-                                          real_time=real_time)
+    _logger.debug(
+        f'where asset= {rate_mqids}, swap_tenor={swap_tenor}, index={defaults["index_type"]}, '
+        f'forward_tenor={forward_tenor}, pricing_location={pricing_location.value}, '
+        f'clearing_house={clearing_house.value}, notional_currency={currency.name}, '
+        f'request_id={request_id}'
+    )
+    q = GsDataApi.build_market_data_query(entity_ids, query_type, where=where, source=source, real_time=real_time)
     _logger.debug(f'q: {q}, request_id: {request_id}')
     df = _market_data_timed(q)
     return df
 
 
-@plot_measure((AssetClass.Cash,), (AssetType.Currency,),
-              [MeasureDependency(id_provider=_currency_to_tdapi_inflation_swap_rate_asset,
-                                 query_type=QueryType.SWAP_RATE)])
-def inflation_swap_rate(asset: Asset, swap_tenor: str, index_type: str = None,
-                        forward_tenor: Optional[GENERIC_DATE] = None, clearing_house: tm_rates._ClearingHouse = None,
-                        location: PricingLocation = None, *,
-                        source: str = None, real_time: bool = False) -> Series:
+@plot_measure(
+    (AssetClass.Cash,),
+    (AssetType.Currency,),
+    [MeasureDependency(id_provider=_currency_to_tdapi_inflation_swap_rate_asset, query_type=QueryType.SWAP_RATE)],
+)
+def inflation_swap_rate(
+    asset: Asset,
+    swap_tenor: str,
+    index_type: str = None,
+    forward_tenor: Optional[GENERIC_DATE] = None,
+    clearing_house: tm_rates._ClearingHouse = None,
+    location: PricingLocation = None,
+    *,
+    source: str = None,
+    real_time: bool = False,
+) -> pd.Series:
     """
     GS end-of-day Zero Coupon Inflation Swap curves across major currencies.
 
@@ -291,23 +328,40 @@ def inflation_swap_rate(asset: Asset, swap_tenor: str, index_type: str = None,
     :param real_time: whether to retrieve intraday data instead of EOD
     :return: swap rate curve
     """
-    df = _get_inflation_swap_data(asset=asset, swap_tenor=swap_tenor, index_type=index_type,
-                                  forward_tenor=forward_tenor,
-                                  clearing_house=clearing_house, source=source,
-                                  real_time=real_time, query_type=QueryType.SWAP_RATE, location=location)
+    df = _get_inflation_swap_data(
+        asset=asset,
+        swap_tenor=swap_tenor,
+        index_type=index_type,
+        forward_tenor=forward_tenor,
+        clearing_house=clearing_house,
+        source=source,
+        real_time=real_time,
+        query_type=QueryType.SWAP_RATE,
+        location=location,
+    )
 
     series = ExtendedSeries(dtype=float) if df.empty else ExtendedSeries(df['swapRate'])
     series.dataset_ids = getattr(df, 'dataset_ids', ())
     return series
 
 
-@plot_measure((AssetClass.Cash,), (AssetType.Currency,),
-              [MeasureDependency(id_provider=_currency_to_tdapi_inflation_swap_rate_asset,
-                                 query_type=QueryType.SWAP_RATE)])
-def inflation_swap_term(asset: Asset, index_type: str = None,
-                        forward_tenor: Optional[GENERIC_DATE] = None, pricing_date: Optional[GENERIC_DATE] = None,
-                        clearing_house: tm_rates._ClearingHouse = None, location: PricingLocation = None, *,
-                        source: str = None, real_time: bool = False, request_id: Optional[str] = None) -> Series:
+@plot_measure(
+    (AssetClass.Cash,),
+    (AssetType.Currency,),
+    [MeasureDependency(id_provider=_currency_to_tdapi_inflation_swap_rate_asset, query_type=QueryType.SWAP_RATE)],
+)
+def inflation_swap_term(
+    asset: Asset,
+    index_type: str = None,
+    forward_tenor: Optional[GENERIC_DATE] = None,
+    pricing_date: Optional[GENERIC_DATE] = None,
+    clearing_house: tm_rates._ClearingHouse = None,
+    location: PricingLocation = None,
+    *,
+    source: str = None,
+    real_time: bool = False,
+    request_id: Optional[str] = None,
+) -> pd.Series:
     """
     Forward term structure of GS end-of-day inflation swaps.
 
@@ -336,10 +390,19 @@ def inflation_swap_term(asset: Asset, index_type: str = None,
         raise MqValueError('Specified pricing date is a holiday in {} calendar'.format(calendar))
     start, end = _range_from_pricing_date(calendar, pricing_date)
     with DataContext(start, end):
-        df = _get_inflation_swap_data(asset=asset, swap_tenor=None, index_type=index_type, forward_tenor=forward_tenor,
-                                      clearing_house=clearing_house, source=source, real_time=real_time,
-                                      query_type=QueryType.SWAP_RATE, location=location, allow_many=True,
-                                      request_id=request_id)
+        df = _get_inflation_swap_data(
+            asset=asset,
+            swap_tenor=None,
+            index_type=index_type,
+            forward_tenor=forward_tenor,
+            clearing_house=clearing_house,
+            source=source,
+            real_time=real_time,
+            query_type=QueryType.SWAP_RATE,
+            location=location,
+            allow_many=True,
+            request_id=request_id,
+        )
     if df.empty:
         series = ExtendedSeries(dtype=float)
     else:
@@ -353,8 +416,8 @@ def inflation_swap_term(asset: Asset, index_type: str = None,
         biz_day = _get_custom_bd(calendar)
         df['expirationDate'] = df['terminationTenor'].apply(_get_term_struct_date, args=(latest, biz_day))
         df = df.set_index('expirationDate')
-        df.sort_index(inplace=True)
-        df = df.loc[DataContext.current.start_date: DataContext.current.end_date]
+        df = df.sort_index()
+        df = df.loc[DataContext.current.start_date : DataContext.current.end_date]
         series = ExtendedSeries(dtype=float) if df.empty else ExtendedSeries(df['swapRate'])
         series.dataset_ids = getattr(df, 'dataset_ids', ())
     if series.empty:  # Raise descriptive error if no data returned + historical date context

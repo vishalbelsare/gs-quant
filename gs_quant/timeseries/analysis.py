@@ -15,10 +15,18 @@
 # should be fully documented: docstrings should describe parameters and the return value, and provide a 1-line
 # description. Type annotations should be provided for parameters.
 import re
+from enum import Enum
+from numbers import Real
+from typing import Union
+
+import numpy as np
+import pandas as pd
 
 from gs_quant.datetime import relative_date_add
-from gs_quant.timeseries.datetime import *
-from .helper import plot_function
+
+from ..errors import MqValueError
+from . import align
+from .helper import Interpolate, Window, plot_function
 
 """
 Timeseries analysis library contains functions used to analyze properties of timeseries, including laging, differencing,
@@ -26,14 +34,22 @@ autocorrelation, co-integration and other operations
 """
 
 
+class ThresholdType(str, Enum):
+    percentage = "percentage"
+    absolute = "absolute"
+
+
 @plot_function
-def smooth_spikes(x: pd.Series, threshold: float) -> pd.Series:
+def smooth_spikes(
+    x: pd.Series, threshold: float, threshold_type: ThresholdType = ThresholdType.percentage
+) -> pd.Series:
     """
     Smooth out the spikes of a series. If a point is larger/smaller than (1 +/- threshold) times both neighbors, replace
     it with the average of those neighbours. Note: the first and last points in the input series are dropped.
 
     :param x: timeseries
     :param threshold: minimum increment to trigger filter
+    :param threshold_type: type of threshold check
     :return: smoothed timeseries
 
     **Usage**
@@ -51,22 +67,113 @@ def smooth_spikes(x: pd.Series, threshold: float) -> pd.Series:
 
     :func:`exponential_moving_average`
     """
+
+    def check_percentage(previous, current, next_, multiplier) -> bool:
+        current_higher = current > previous * multiplier and current > next_ * multiplier
+        current_lower = previous > current * multiplier and next_ > current * multiplier
+        return current_higher or current_lower
+
+    def check_absolute(previous, current, next_, absolute) -> bool:
+        current_higher = current > previous + absolute and current > next_ + absolute
+        current_lower = previous > current + absolute and next_ > current + absolute
+        return current_higher or current_lower
+
     if len(x) < 3:
         return pd.Series(dtype=float)
 
-    result = x.copy()
-    multiplier = (1 + threshold)
+    threshold_value, check_spike = (
+        (threshold, check_absolute) if threshold_type == ThresholdType.absolute else ((1 + threshold), check_percentage)
+    )
+
+    result = x.astype(float)
     current, next_ = x.iloc[0:2]
     for i in range(1, len(x) - 1):
         previous = current
         current = next_
         next_ = x.iloc[i + 1]
 
-        scaled = current * multiplier
-        if (current > previous * multiplier and current > next_ * multiplier) or (previous > scaled and next_ > scaled):
+        if check_spike(previous, current, next_, threshold_value):
             result.iloc[i] = (previous + next_) / 2
 
     return result[1:-1]
+
+
+@plot_function
+def smooth_outliers(x: pd.Series, threshold: float = 0.5) -> pd.Series:
+    """
+    Smooth out anomalous regimes in a series, including prolonged dips or spikes that deviate
+    significantly from the local trend and then revert.
+
+    A point is flagged when its value deviates from a rolling median by more than ``threshold``
+    as a fraction (e.g. 0.5 = 50 %). Flagged regions are replaced by linearly interpolating
+    between the nearest normal neighbours.
+
+    Unlike :func:`smooth_spikes`, this function handles multiple consecutive outliers and
+    prolonged anomalous regimes (e.g. a sustained dip lasting months).
+
+    :param x: timeseries
+    :param threshold: fractional deviation from the rolling median to flag as anomalous
+        (default 0.5, i.e. 50 %). A point is flagged when
+        ``abs(value - rolling_median) / rolling_median > threshold``.
+    :return: timeseries with anomalous regions replaced by linear interpolation
+
+    **Usage**
+
+    Smooth anomalous regimes where the value drops (or spikes) more than 50 % from the local trend.
+
+    **Examples**
+
+    Smooth anomalous dips that deviate more than 50 % from the local level:
+
+    >>> prices = generate_series(100)
+    >>> smooth_outliers(prices, threshold=0.5)
+
+    **See also**
+
+    :func:`smooth_spikes`
+    """
+    if len(x) < 3:
+        return x.copy()
+
+    if threshold <= 0:
+        raise MqValueError('threshold must be positive')
+
+    values = x.astype(float)
+
+    # Use a rolling median over a large window as the "expected" level.
+    # The window must be large enough that the anomalous region doesn't
+    # dominate it.  We use the full series length (global median) as default,
+    # then iteratively refine: after removing flagged points the median
+    # becomes cleaner, which may reveal more of the anomalous region.
+    result = values.copy()
+    ever_outlier = pd.Series(False, index=x.index)
+
+    for _ in range(10):
+        # Build the expected-level series from clean (non-flagged) points,
+        # interpolating across gaps, then smoothing with a large rolling
+        # median so that the natural trend is preserved while the anomalous
+        # region (which is the minority of the data) does not dominate.
+        expected = values.copy()
+        expected[ever_outlier] = np.nan
+        expected = expected.interpolate(method='index').ffill().bfill()
+        win = max(len(x) * 3 // 4, min(len(x), 30))
+        expected = expected.rolling(window=win, center=True, min_periods=1).median()
+
+        # Flag points that deviate from the expected level by more than threshold
+        safe_expected = expected.replace(0, np.nan)
+        pct_dev = ((values - expected) / safe_expected).abs()
+        is_outlier = pct_dev > threshold
+
+        new_outliers = is_outlier & ~ever_outlier
+        if not new_outliers.any():
+            break
+
+        ever_outlier |= new_outliers
+        result = values.copy()
+        result[ever_outlier] = np.nan
+        result = result.interpolate(method='index').ffill().bfill()
+
+    return result
 
 
 @plot_function
@@ -85,6 +192,8 @@ def repeat(x: pd.Series, n: int = 1) -> pd.Series:
     """
     if not 0 < n < 367:
         raise MqValueError('n must be between 0 and 367')
+    if x.empty:
+        return x
     index = pd.date_range(freq=f'{n}D', start=x.index[0], end=x.index[-1])
     return x.reindex(index, method='ffill')
 
@@ -117,7 +226,7 @@ def first(x: pd.Series) -> pd.Series:
     :func:`last`
 
     """
-    return pd.Series(x[0], x.index)
+    return pd.Series(x.iloc[0], x.index)
 
 
 @plot_function
@@ -148,7 +257,7 @@ def last(x: pd.Series) -> pd.Series:
     :func:`first`
 
     """
-    return pd.Series(x.dropna()[-1], x.index)
+    return pd.Series(x.dropna().iloc[-1], x.index)
 
 
 @plot_function
@@ -250,8 +359,9 @@ def diff(x: pd.Series, obs: Union[Window, int, str] = 1) -> pd.Series:
 
 
 @plot_function
-def compare(x: Union[pd.Series, Real], y: Union[pd.Series, Real], method: Interpolate = Interpolate.STEP) \
-        -> Union[pd.Series, Real]:
+def compare(
+    x: Union[pd.Series, Real], y: Union[pd.Series, Real], method: Interpolate = Interpolate.STEP
+) -> Union[pd.Series, Real]:
     """
     Compare two series or scalars against each other
 
@@ -300,6 +410,11 @@ class LagMode(Enum):
     EXTEND = "extend"
 
 
+class SignDirection(str, Enum):
+    POSITIVE = "positive"
+    NEGATIVE = "negative"
+
+
 @plot_function
 def lag(x: pd.Series, obs: Union[Window, int, str] = 1, mode: LagMode = LagMode.EXTEND) -> pd.Series:
     """
@@ -335,15 +450,25 @@ def lag(x: pd.Series, obs: Union[Window, int, str] = 1, mode: LagMode = LagMode.
     :func:`diff`
     """
     if isinstance(obs, str):
-        end = x.index[-1]
+        # Check for business day pattern and raise an error
+        if re.search('[bB]', obs):
+            raise MqValueError(
+                f"Business day offset '{obs}' is not supported. "
+                "If your dataset is indexed on business days, use an integer offset instead (e.g., 1, 2, -1)."
+            )
+
+        end = pd.Timestamp(x.index[-1])
         y = x.copy()  # avoid mutating the provided series
 
         match = re.fullmatch('(\\d+)y', obs)
         if match:
             y.index += pd.DateOffset(years=int(match.group(1)))
             y = y.groupby(y.index).first()
+            if hasattr(y.index, 'as_unit'):
+                y.index = y.index.as_unit('ns')
         else:
-            y.index += pd.DateOffset(relative_date_add(obs))
+            _idx = pd.DatetimeIndex([(i + pd.DateOffset(relative_date_add(obs))).date() for i in y.index])
+            y.index = _idx.as_unit('ns') if hasattr(_idx, 'as_unit') else _idx
 
         if mode == LagMode.EXTEND:
             return y
@@ -352,6 +477,8 @@ def lag(x: pd.Series, obs: Union[Window, int, str] = 1, mode: LagMode = LagMode.
     obs = getattr(obs, 'w', obs)
     # Determine how we want to handle observations prior to start date
     if mode == LagMode.EXTEND:
+        if x.empty:
+            return x
         if x.index.resolution != 'day':
             raise MqValueError(f'unable to extend index with resolution {x.index.resolution}')
         kwargs = {'periods': abs(obs) + 1, 'freq': 'D'}
@@ -360,4 +487,57 @@ def lag(x: pd.Series, obs: Union[Window, int, str] = 1, mode: LagMode = LagMode.
         else:
             kwargs['end'] = x.index[0]
         x = x.reindex(x.index.union(pd.date_range(**kwargs)))
+        if hasattr(x.index, 'as_unit'):
+            x.index = x.index.as_unit('ns')
     return x.shift(obs)
+
+
+@plot_function
+def consecutive(x: pd.Series, direction: SignDirection = SignDirection.POSITIVE) -> pd.Series:
+    """
+    Count the number of consecutive points that are positive or negative.
+
+    :param x: timeseries
+    :param direction: whether to count consecutive positive or negative values
+        (default: positive)
+    :return: timeseries where each point shows the running count of consecutive
+        values matching the chosen direction; resets to 0 when the condition breaks
+
+    **Usage**
+
+    For each date, count how many consecutive prior values (including the current one)
+    satisfy the sign condition. The counter resets to 0 whenever the condition is not met.
+
+    When ``direction`` is ``positive``, a point is counted when :math:`X_t > 0`.
+    When ``direction`` is ``negative``, a point is counted when :math:`X_t < 0`.
+
+    **Examples**
+
+    Count consecutive positive values:
+
+    >>> series = generate_series(100)
+    >>> pos_run = consecutive(series, SignDirection.POSITIVE)
+
+    Count consecutive negative values:
+
+    >>> series = generate_series(100)
+    >>> neg_run = consecutive(series, SignDirection.NEGATIVE)
+
+    **See also**
+
+    :func:`count`
+    """
+    if x.empty:
+        return x.copy()
+
+    if direction == SignDirection.POSITIVE:
+        condition = x > 0
+    else:
+        condition = x < 0
+
+    # Build a running count that resets to 0 when the condition is False.
+    # groupby on the cumulative sum of ~condition creates groups of consecutive True runs.
+    groups = (~condition).cumsum()
+    result = condition.groupby(groups).cumsum().astype(int)
+
+    return pd.Series(result, index=x.index)

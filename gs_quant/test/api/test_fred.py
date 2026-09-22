@@ -18,14 +18,14 @@ by the Federal Reserve Bank of St. Louis. FRED terms of use
 available at https://research.stlouisfed.org/docs/api/terms_of_use.html
 """
 
+from unittest.mock import Mock
+
 import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal, assert_series_equal
 
-from gs_quant.data import Dataset
 from gs_quant.api.fred.data import FredDataApi
-
-from unittest.mock import Mock
+from gs_quant.data import Dataset
 
 fredAPI = FredDataApi(api_key='')
 fred_data = Dataset('GDP', fredAPI)
@@ -35,7 +35,8 @@ GDP_data = {
     'realtime_end': '2019-10-25',
     'observation_start': '1600-01-01',
     'observation_end': '9999-12-31',
-    'units': 'lin', 'output_type': 1,
+    'units': 'lin',
+    'output_type': 1,
     'file_type': 'json',
     'order_by': 'observation_date',
     'sort_order': 'asc',
@@ -62,13 +63,13 @@ GDP_data = {
         {'realtime_start': '2019-10-25', 'realtime_end': '2019-10-25', 'date': '1950-01-01', 'value': '280.828'},
         {'realtime_start': '2019-10-25', 'realtime_end': '2019-10-25', 'date': '1950-04-01', 'value': '290.383'},
         {'realtime_start': '2019-10-25', 'realtime_end': '2019-10-25', 'date': '1950-07-01', 'value': '308.153'},
-        {'realtime_start': '2019-10-25', 'realtime_end': '2019-10-25', 'date': '1950-10-01', 'value': '319.945'}
-    ]
+        {'realtime_start': '2019-10-25', 'realtime_end': '2019-10-25', 'date': '1950-10-01', 'value': '319.945'},
+    ],
 }
 
 
 def _mock_requests_response(status=200, content='', json_data=None, raise_for_status=None):
-    """ Helper function to build mock requests responses."""
+    """Helper function to build mock requests responses."""
     mock_resp = Mock()
     mock_resp.status_code = status
     mock_resp.content = content

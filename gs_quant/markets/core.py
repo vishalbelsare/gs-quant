@@ -13,32 +13,39 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
+
 import asyncio
 import datetime as dt
 import logging
-import queue
 import sys
 import weakref
 from abc import ABCMeta
 from concurrent.futures import ThreadPoolExecutor
 from inspect import signature
-from itertools import zip_longest, takewhile
+from itertools import takewhile, zip_longest
 from typing import Optional, Union
 
-from gs_quant.base import InstrumentBase, RiskKey, Scenario, get_enum_value
-from gs_quant.common import PricingLocation, RiskMeasure
-from gs_quant.context_base import ContextBaseWithDefault
-from gs_quant.datetime.date import business_day_offset, today
-from gs_quant.risk import CompositeScenario, DataFrameWithInfo, ErrorValue, FloatWithInfo, MarketDataScenario, \
-    StringWithInfo
-from gs_quant.risk.results import PricingFuture
-from gs_quant.session import GsSession
-from gs_quant.target.common import PricingDateAndMarketDataAsOf
-from gs_quant.target.risk import RiskPosition, RiskRequest, RiskRequestParameters
-from gs_quant.tracing import Tracer
 from tqdm import tqdm
 
-from .markets import CloseMarket, LiveMarket, Market, close_market_date, OverlayMarket, RelativeMarket
+from gs_quant.base import InstrumentBase, RiskKey, Scenario, get_enum_value
+from gs_quant.common import PricingDateAndMarketDataAsOf, PricingLocation, RiskMeasure
+from gs_quant.context_base import ContextBaseWithDefault
+from gs_quant.datetime.date import business_day_offset, today
+from gs_quant.risk import (
+    CompositeScenario,
+    DataFrameWithInfo,
+    ErrorValue,
+    FloatWithInfo,
+    MarketDataScenario,
+    StringWithInfo,
+)
+from gs_quant.risk.results import PricingFuture
+from gs_quant.session import GsSession
+from gs_quant.target.risk import RiskPosition, RiskRequest, RiskRequestParameters
+from gs_quant.tracing import Tracer
+
+from ..api.risk import GenericRiskApi
+from .markets import CloseMarket, LiveMarket, Market, OverlayMarket, RelativeMarket, close_market_date
 
 _logger = logging.getLogger(__name__)
 
@@ -49,6 +56,7 @@ class PricingCache(metaclass=ABCMeta):
     """
     Weakref cache for instrument calcs
     """
+
     __cache = weakref.WeakKeyDictionary()
 
     @classmethod
@@ -75,21 +83,25 @@ class PricingContext(ContextBaseWithDefault):
     A context for controlling pricing and market data behaviour
     """
 
-    def __init__(self,
-                 pricing_date: Optional[dt.date] = None,
-                 market_data_location: Optional[Union[PricingLocation, str]] = None,
-                 is_async: bool = None,
-                 is_batch: bool = None,
-                 use_cache: bool = None,
-                 visible_to_gs: Optional[bool] = None,
-                 request_priority: Optional[int] = None,
-                 csa_term: Optional[str] = None,
-                 timeout: Optional[int] = None,
-                 market: Optional[Market] = None,
-                 show_progress: Optional[bool] = None,
-                 use_server_cache: Optional[bool] = None,
-                 market_behaviour: Optional[str] = 'ContraintsBased',
-                 set_parameters_only: bool = False):
+    def __init__(
+        self,
+        pricing_date: Optional[dt.date] = None,
+        market_data_location: Optional[Union[PricingLocation, str]] = None,
+        is_async: bool = None,
+        is_batch: bool = None,
+        use_cache: bool = None,
+        visible_to_gs: Optional[bool] = None,
+        request_priority: Optional[int] = None,
+        csa_term: Optional[str] = None,
+        timeout: Optional[int] = None,
+        market: Optional[Market] = None,
+        show_progress: Optional[bool] = None,
+        use_server_cache: Optional[bool] = None,
+        market_behaviour: Optional[str] = 'ContraintsBased',
+        set_parameters_only: bool = False,
+        use_historical_diddles_only: Optional[bool] = None,
+        provider: Optional[type[GenericRiskApi]] = None,
+    ):
         """
         The methods on this class should not be called directly. Instead, use the methods on the instruments,
         as per the examples
@@ -110,6 +122,8 @@ class PricingContext(ContextBaseWithDefault):
         :param market_behaviour: the behaviour to build the curve for pricing ('ContraintsBased' or 'Calibrated'
             (defaults to ContraintsBased))
         :param set_parameters_only: if true don't stop embedded pricing contexts submitting their jobs.
+        :param use_historical_diddles_only: if true only use historical diddles
+        :param provider: GenericRiskApi implementation to use for pricing requests
 
         **Examples**
 
@@ -139,8 +153,11 @@ class PricingContext(ContextBaseWithDefault):
         """
         super().__init__()
 
-        if market and market_data_location and market.location is not \
-                get_enum_value(PricingLocation, market_data_location):
+        if (
+            market
+            and market_data_location
+            and market.location is not get_enum_value(PricingLocation, market_data_location)
+        ):
             raise ValueError('market.location and market_data_location cannot be different')
 
         if not market and pricing_date and pricing_date > dt.date.today() + dt.timedelta(5):
@@ -148,7 +165,8 @@ class PricingContext(ContextBaseWithDefault):
             # We should use a calendar but not everyone has access
             raise ValueError(
                 'The PricingContext does not support a pricing_date in the future. Please use the RollFwd Scenario '
-                'to roll the pricing_date to a future date')
+                'to roll the pricing_date to a future date'
+            )
 
         if market:
             market_date = None
@@ -156,14 +174,18 @@ class PricingContext(ContextBaseWithDefault):
                 market_date = getattr(market, 'date', None) or getattr(market.market, 'date', None)
 
             if isinstance(market, RelativeMarket):
-                market_date = market.market.from_market.date if market.market.from_market.date > dt.date.today() \
+                market_date = (
+                    market.market.from_market.date
+                    if market.market.from_market.date > dt.date.today()
                     else market.market.to_market.date
+                )
 
             if market_date:
                 if market_date > dt.date.today():
                     raise ValueError(
                         'The PricingContext does not support a market dated in the future. Please use the RollFwd '
-                        'Scenario to roll the pricing_date to a future date')
+                        'Scenario to roll the pricing_date to a future date'
+                    )
 
         if not market_data_location:
             if market:
@@ -184,9 +206,11 @@ class PricingContext(ContextBaseWithDefault):
         self.__market = market
         self.__show_progress = show_progress
         self.__use_server_cache = use_server_cache
+        self.__provider = provider
         self.__max_per_batch = None
         self.__max_concurrent = None
-
+        self.__dates_per_batch = None
+        self.__use_historical_diddles_only = use_historical_diddles_only
         self.__set_parameters_only = set_parameters_only
 
         self.__pending = {}
@@ -208,8 +232,11 @@ class PricingContext(ContextBaseWithDefault):
         attr_dict['market'] = self.__market
         attr_dict['show_progress'] = self.__show_progress
         attr_dict['use_server_cache'] = self.__use_server_cache
+        attr_dict['provider'] = self.__provider
         attr_dict['_max_concurrent'] = self.__max_concurrent
         attr_dict['_max_per_batch'] = self.__max_per_batch
+        attr_dict['_dates_per_batch'] = self.__dates_per_batch
+        attr_dict['use_historical_diddles_only'] = self.__use_historical_diddles_only
 
     def _inherited_val(self, parameter, default=None, from_active=False):
         if from_active:
@@ -218,13 +245,19 @@ class PricingContext(ContextBaseWithDefault):
                 return getattr(self.active_context, parameter)
         if not self.is_entered and (not PricingContext.has_prior or self is not PricingContext.prior):
             # if not yet entered, get property from current (would-be prior) so that getters still display correctly
-            if PricingContext.current is not self and PricingContext.current and getattr(PricingContext.current,
-                                                                                         parameter) is not None:
+            if (
+                PricingContext.current is not self
+                and PricingContext.current
+                and getattr(PricingContext.current, parameter) is not None
+            ):
                 return getattr(PricingContext.current, parameter)
         else:
             # if entered, inherit from the prior
-            if PricingContext.has_prior and PricingContext.prior is not self and getattr(PricingContext.prior,
-                                                                                         parameter) is not None:
+            if (
+                PricingContext.has_prior
+                and PricingContext.prior is not self
+                and getattr(PricingContext.prior, parameter) is not None
+            ):
                 return getattr(PricingContext.prior, parameter)
         # default if nothing to inherit
         return default
@@ -245,8 +278,11 @@ class PricingContext(ContextBaseWithDefault):
         self.__request_priority = self.request_priority
         self.__show_progress = self.show_progress
         self.__use_server_cache = self.use_server_cache
+        self.__provider = self.provider
         self.__max_concurrent = self._max_concurrent
         self.__max_per_batch = self._max_per_batch
+        self.__dates_per_batch = self._dates_per_batch
+        self.__use_historical_diddles_only = self.use_historical_diddles_only
 
     def __reset_atts(self):
         self.__pricing_date = self.__attrs_on_entry.get('pricing_date')
@@ -262,8 +298,10 @@ class PricingContext(ContextBaseWithDefault):
         self.__market = self.__attrs_on_entry.get('market')
         self.__show_progress = self.__attrs_on_entry.get('show_progress')
         self.__use_server_cache = self.__attrs_on_entry.get('use_server_cache')
+        self.__provider = self.__attrs_on_entry.get('provider')
         self.__max_concurrent = self.__attrs_on_entry.get('_max_concurrent')
         self.__max_per_batch = self.__attrs_on_entry.get('_max_per_batch')
+        self.__dates_per_batch = self.__attrs_on_entry.get('_dates_per_batch')
 
         self.__attrs_on_entry = {}
 
@@ -280,39 +318,26 @@ class PricingContext(ContextBaseWithDefault):
         def run_requests(requests_: list, provider_, create_event_loop: bool, pc_attrs: dict, span):
             if create_event_loop:
                 asyncio.set_event_loop(asyncio.new_event_loop())
-
-            results = queue.Queue()
-            done = False
-
-            try:
-                with session:
-                    provider_.run(requests_, results, pc_attrs['_max_concurrent'], progress_bar,
-                                  timeout=pc_attrs['timeout'], span=span)
-            except Exception as e:
-                provider_.enqueue(results, ((k, e) for k in self.__pending.keys()))
-
-            while self.__pending and not done:
-                done, chunk_results = provider_.drain_queue(results)
-                for (risk_key_, priceable_), result in chunk_results:
-                    future = self.__pending.pop((risk_key_, priceable_), None)
-                    if future is not None:
-                        future.set_result(result)
-
-                        if pc_attrs['use_cache']:
-                            PricingCache.put(risk_key_, priceable_, result)
-
-            if not pc_attrs['is_async']:
-                # In async mode we can't tell if we've completed, we could be re-used
-                while self.__pending:
-                    (risk_key_, _), future = self.__pending.popitem()
-                    future.set_result(ErrorValue(risk_key_, 'No result returned'))
+            provider_.populate_pending_futures(
+                requests_,
+                session,
+                self.__pending,
+                max_concurrent=pc_attrs['_max_concurrent'],
+                progress_bar=progress_bar,
+                timeout=pc_attrs['timeout'],
+                span=span,
+                cache_impl=PricingCache if pc_attrs['use_cache'] else None,
+                is_async=pc_attrs['is_async'],
+            )
 
         # Group requests optimally
         requests_by_provider = {}
-        for (key, instrument) in self.__pending.keys():
-            dates_markets, measures = requests_by_provider.setdefault(key.provider, {}) \
-                .setdefault((key.params, key.scenario), {}) \
+        for key, instrument in self.__pending.keys():
+            dates_markets, measures = (
+                requests_by_provider.setdefault(key.provider, {})
+                .setdefault((key.params, key.scenario), {})
                 .setdefault(instrument, (set(), set()))
+            )
             dates_markets.add((key.date, key.market))
             measures.add(key.risk_measure)
 
@@ -326,43 +351,60 @@ class PricingContext(ContextBaseWithDefault):
 
                 for (params, scenario), positions_by_dates_markets_measures in by_params_scenario.items():
                     for instrument, (dates_markets, risk_measures) in positions_by_dates_markets_measures.items():
-                        grouped_requests.setdefault((params, scenario, tuple(sorted(dates_markets)),
-                                                     tuple(sorted(risk_measures))),
-                                                    []).append(instrument)
+                        grouped_requests.setdefault(
+                            (params, scenario, tuple(sorted(dates_markets)), tuple(sorted(risk_measures))), []
+                        ).append(instrument)
 
                 requests = []
 
                 # Restrict to 1,000 instruments and 1 date in a batch, until server side changes are made
 
                 for (params, scenario, dates_markets, risk_measures), instruments in grouped_requests.items():
-                    for insts_chunk in [tuple(filter(None, i)) for i in
-                                        zip_longest(*[iter(instruments)] * self._max_per_batch)]:
-                        for dates_chunk in [tuple(filter(None, i)) for i in
-                                            zip_longest(*[iter(dates_markets)] * (
-                                                    1 if self._group_by_date else self._max_per_batch))]:
-                            requests.append(RiskRequest(
-                                tuple(RiskPosition(instrument=i, quantity=i.instrument_quantity,
-                                                   instrument_name=i.name) for i in insts_chunk),
-                                risk_measures,
-                                parameters=params,
-                                wait_for_results=not self.__is_batch,
-                                scenario=scenario,
-                                pricing_and_market_data_as_of=tuple(
-                                    PricingDateAndMarketDataAsOf(pricing_date=d, market=m)
-                                    for d, m in dates_chunk),
-                                request_visible_to_gs=request_visible_to_gs,
-                                use_cache=self.__use_server_cache,
-                                priority=self.__request_priority
-                            ))
+                    date_chunk_size = (
+                        (self._dates_per_batch if self._group_by_date else self._max_per_batch)
+                        if provider.batch_dates
+                        else len(dates_markets)
+                    )
+                    for insts_chunk in [
+                        tuple(filter(None, i)) for i in zip_longest(*[iter(instruments)] * self._max_per_batch)
+                    ]:
+                        for dates_chunk in [
+                            tuple(filter(None, i)) for i in zip_longest(*[iter(dates_markets)] * date_chunk_size)
+                        ]:
+                            requests.append(
+                                RiskRequest(
+                                    tuple(
+                                        RiskPosition(
+                                            instrument=i, quantity=i.instrument_quantity, instrument_name=i.name
+                                        )
+                                        for i in insts_chunk
+                                    ),
+                                    risk_measures,
+                                    parameters=params,
+                                    wait_for_results=not self.__is_batch,
+                                    scenario=scenario,
+                                    pricing_and_market_data_as_of=tuple(
+                                        PricingDateAndMarketDataAsOf(pricing_date=d, market=m) for d, m in dates_chunk
+                                    ),
+                                    request_visible_to_gs=request_visible_to_gs,
+                                    use_cache=self.__use_server_cache,
+                                    priority=self.__request_priority,
+                                )
+                            )
 
                 requests_for_provider[provider] = requests
 
-            show_status = self.__show_progress and \
-                          (len(requests_for_provider) > 1 or len(next(iter(requests_for_provider.values()))) > 1)
-            request_pool = ThreadPoolExecutor(len(requests_for_provider)) \
-                if len(requests_for_provider) > 1 or self.__is_async else None
-            progress_bar = tqdm(total=len(self.__pending), position=0, maxinterval=1,
-                                file=sys.stdout) if show_status else None
+            show_status = self.__show_progress and (
+                len(requests_for_provider) > 1 or len(next(iter(requests_for_provider.values()))) > 1
+            )
+            request_pool = (
+                ThreadPoolExecutor(len(requests_for_provider))
+                if len(requests_for_provider) > 1 or self.__is_async
+                else None
+            )
+            progress_bar = (
+                tqdm(total=len(self.__pending), position=0, maxinterval=1, file=sys.stdout) if show_status else None
+            )
             completion_futures = []
 
             # Requests might get dispatched asynchronously and the PricingContext gets cleaned up on exit.
@@ -370,13 +412,35 @@ class PricingContext(ContextBaseWithDefault):
             # All attributes are immutable, so a shared dictionary is sufficient. __pending remains shared.
             attrs_for_request = {}
             self.__save_attrs_to(attrs_for_request)
-            span = Tracer.get_instance().active_span
+            all_futures_count = len(requests_for_provider)
+            span = Tracer.active_span()
+            if self.__is_async and span and span.is_recording():
+                # if we are in async mode we can't be certain that the `span` here will still be recording by the time
+                # the request_pool threads execute. So we create a sub-span to track the dispatch activity.
+                # We only finish that span when all futures are complete
+                # e.g. would have been a problem if you did
+                # with Tracer('blah'), PricingContext(is_async=True):
+                #     something.calc(risk.SomeRisk)
+                sub_scope = Tracer.start_active_span('async-request-dispatch')
+                span = sub_scope.span
+
+            def handle_fut_res(f):
+                nonlocal all_futures_count
+                all_futures_count -= 1
+                if all_futures_count == 0:
+                    Tracer.activate_span(span, finish_on_close=True).close()
+
             for provider, requests in requests_for_provider.items():
                 if request_pool:
-                    completion_future = request_pool.submit(run_requests, requests, provider, True,
-                                                            attrs_for_request, span)
-                    if not self.__is_async:
+                    completion_future = request_pool.submit(
+                        run_requests, requests, provider, True, attrs_for_request, span
+                    )
+                    if self.__is_async:
+                        completion_future.add_done_callback(handle_fut_res)
+                    else:
+                        # We append to this list when not async as these are the ones we wait on before returning
                         completion_futures.append(completion_future)
+
                 else:
                     run_requests(requests, provider, False, attrs_for_request, span)
 
@@ -390,8 +454,12 @@ class PricingContext(ContextBaseWithDefault):
 
     @property
     def _parameters(self) -> RiskRequestParameters:
-        return RiskRequestParameters(csa_term=self.__csa_term, raw_results=True,
-                                     market_behaviour=self.__market_behaviour)
+        return RiskRequestParameters(
+            csa_term=self.__csa_term,
+            raw_results=True,
+            market_behaviour=self.__market_behaviour,
+            use_historical_diddles_only=self.use_historical_diddles_only,
+        )
 
     @property
     def _scenario(self) -> Optional[MarketDataScenario]:
@@ -399,8 +467,9 @@ class PricingContext(ContextBaseWithDefault):
         if not scenarios:
             return None
 
-        return MarketDataScenario(scenario=scenarios[0] if len(scenarios) == 1 else
-        CompositeScenario(scenarios=tuple(reversed(scenarios))))
+        return MarketDataScenario(
+            scenario=scenarios[0] if len(scenarios) == 1 else CompositeScenario(scenarios=tuple(reversed(scenarios)))
+        )
 
     @property
     def active_context(self):
@@ -429,6 +498,14 @@ class PricingContext(ContextBaseWithDefault):
         self.__max_per_batch = value
 
     @property
+    def _dates_per_batch(self) -> int:
+        return self.__dates_per_batch if self.__dates_per_batch else self._inherited_val('_dates_per_batch', default=1)
+
+    @_dates_per_batch.setter
+    def _dates_per_batch(self, value):
+        self.__dates_per_batch = value
+
+    @property
     def is_async(self) -> bool:
         if self.__is_async is not None:
             return self.__is_async
@@ -440,14 +517,22 @@ class PricingContext(ContextBaseWithDefault):
 
     @property
     def market(self) -> Market:
-        return self.__market if self.__market else CloseMarket(
-            date=close_market_date(self.market_data_location, self.pricing_date),
-            location=self.market_data_location)
+        return (
+            self.__market
+            if self.__market
+            else CloseMarket(
+                date=close_market_date(self.market_data_location, self.pricing_date, CloseMarket.roll_hr_and_min),
+                location=self.market_data_location,
+            )
+        )
 
     @property
     def market_data_location(self) -> PricingLocation:
-        return self.__market_data_location if self.__market_data_location else self._inherited_val(
-            'market_data_location', from_active=True, default=PricingLocation.LDN)
+        return (
+            self.__market_data_location
+            if self.__market_data_location
+            else self._inherited_val('market_data_location', from_active=True, default=PricingLocation.LDN)
+        )
 
     @property
     def csa_term(self) -> str:
@@ -467,13 +552,23 @@ class PricingContext(ContextBaseWithDefault):
 
     @property
     def use_server_cache(self) -> bool:
-        return self.__use_server_cache if self.__use_server_cache is not None else self._inherited_val(
-            'use_server_cache', False)
+        return (
+            self.__use_server_cache
+            if self.__use_server_cache is not None
+            else self._inherited_val('use_server_cache', False)
+        )
+
+    @property
+    def provider(self) -> type[GenericRiskApi]:
+        return self.__provider if self.__provider is not None else self._inherited_val('provider', None)
 
     @property
     def market_behaviour(self) -> str:
-        return self.__market_behaviour if self.__market_behaviour else self._inherited_val(
-            'market_behaviour', default='ContraintsBased')
+        return (
+            self.__market_behaviour
+            if self.__market_behaviour
+            else self._inherited_val('market_behaviour', default='ContraintsBased')
+        )
 
     @property
     def pricing_date(self) -> dt.date:
@@ -497,6 +592,12 @@ class PricingContext(ContextBaseWithDefault):
     def set_parameters_only(self) -> bool:
         return self.__set_parameters_only
 
+    @property
+    def use_historical_diddles_only(self) -> bool:
+        if self.__use_historical_diddles_only is not None:
+            return self.__use_historical_diddles_only
+        return self._inherited_val('use_historical_diddles_only', default=False)
+
     def clone(self, **kwargs):
         clone_kwargs = {k: getattr(self, k, None) for k in signature(self.__init__).parameters.keys()}
         clone_kwargs.update(kwargs)
@@ -506,6 +607,7 @@ class PricingContext(ContextBaseWithDefault):
         pending = self.active_context.__pending
 
         from gs_quant.instrument import DummyInstrument
+
         if isinstance(instrument, DummyInstrument):
             return PricingFuture(StringWithInfo(value=instrument.dummy_result, risk_key=risk_key))
 
@@ -538,7 +640,8 @@ class PricingContext(ContextBaseWithDefault):
         >>> swap = IRSwap('Pay', '10y', 'USD', fixed_rate=0.01)
         >>> delta = swap.calc(IRDelta)
         """
-        return self._calc(instrument, self.__risk_key(risk_measure, instrument.provider))
+        provider = instrument.provider if self.provider is None else self.provider
+        return self._calc(instrument, self.__risk_key(risk_measure, provider))
 
 
 class PositionContext(ContextBaseWithDefault):
@@ -546,14 +649,13 @@ class PositionContext(ContextBaseWithDefault):
     A context for controlling portfolio position behaviour
     """
 
-    def __init__(self,
-                 position_date: Optional[dt.date] = None):
+    def __init__(self, position_date: Optional[dt.date] = None):
         """
         The methods on this class should not be called directly. Instead, use the methods on the portfolios,
         as per the examples
 
         :param position_date: the date for pricing calculations. Default is today
-        
+
         **Examples**
 
         To change the position date of the default context:
@@ -586,8 +688,9 @@ class PositionContext(ContextBaseWithDefault):
             if position_date > dt.date.today():
                 raise ValueError("The PositionContext does not support a position_date in the future")
 
-        self.__position_date = position_date if position_date \
-            else business_day_offset(dt.date.today(), 0, roll='preceding')
+        self.__position_date = (
+            position_date if position_date else business_day_offset(dt.date.today(), 0, roll='preceding')
+        )
 
     @property
     def position_date(self):
